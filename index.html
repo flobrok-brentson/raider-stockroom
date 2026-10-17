@@ -280,10 +280,10 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;
 function step(key,val){return '<span class="step"><button type="button" data-a="dec" data-k="'+key+'" aria-label="decrease">−</button><input type="number" min="0" inputmode="numeric" id="in-'+key+'" data-k="'+key+'" value="'+val+'"><button type="button" data-a="inc" data-k="'+key+'" aria-label="increase">+</button></span>'}
 function srcChips(m,max){var s=MATS[m].s.slice(0,max);if(!s.length)return '';return s.map(function(x){return '<span class="chip src">'+esc(x[0])+' ×'+x[1]+'</span>'}).join('')}
 function viewLoot(C){
-  var rows=MATNAMES.filter(function(m){return C.short[m]>0&&!S.hideMat[m]}).sort(function(a,b){return (C.pinBy[b]?1:0)-(C.pinBy[a]?1:0)||C.short[b]-C.short[a]});
+  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m])&&!S.hideMat[m]}).sort(function(a,b){return (C.pinBy[b]?1:0)-(C.pinBy[a]?1:0)||C.short[b]-C.short[a]||C.need[b]-C.need[a]});
   var pins=allItems().filter(function(it){return S.pin[it.id]&&isActive(it)&&!S.ign[it.id]});
   var hidden=MATNAMES.filter(function(m){return S.hideMat[m]});
-  var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0&&g(S.have,m)>=C.need[m]});
+  var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0&&!C.pinBy[m]&&g(S.have,m)>=C.need[m]});
   var refine=S.expand?MATNAMES.filter(function(m){return MATS[m].r&&C.need[m]>g(S.have,m)&&C.short[m]===0&&!S.hideMat[m]}):[];
   var h='<div class="toolbar"><label><input type="checkbox" id="expand" '+(S.expand?'checked':'')+'> Count refined parts as the raw materials they are made from</label></div>';
   h+=watchHtml();
@@ -298,9 +298,11 @@ function viewLoot(C){
     var r=MATS[m].r;
     var pn=C.pinBy[m]||[];
     var users=(C.by[m]||[]).slice(0,4).map(function(n){return '<span class="chip">'+esc(n)+'</span>'}).join('');
-    h+='<div class="row hot"><div><h3>'+(idx+1)+'. '+esc(m)+' <span class="pill warn">need '+sh+' more</span>'+(pn.length?' <span class="pill pri">Prioritized</span>':'')+' <button class="btn small" data-a="hidemat" data-m="'+esc(m)+'" title="Stop showing this material in the list">Hide</button></h3>'+
+    var stocked=sh===0&&have>=need,refining=sh===0&&have<need;
+    var pill=sh>0?'<span class="pill warn">need '+sh+' more</span>':stocked?'<span class="pill ok">stocked</span>':'<span class="pill idle">refine '+(need-have)+'</span>';
+    h+='<div class="row'+(sh>0?' hot':'')+'"><div><h3>'+(idx+1)+'. '+esc(m)+' '+pill+''+(pn.length?' <span class="pill pri">Prioritized</span>':'')+' <button class="btn small" data-a="hidemat" data-m="'+esc(m)+'" title="Stop showing this material in the list">Hide</button></h3>'+
       '<div class="meta">Have <span class="nums">'+have+'</span> of <span class="nums">'+need+'</span> needed'+(r?' · can be refined at '+esc(r.st)+' from '+Object.keys(r.i).map(function(k){return r.i[k]+' '+k}).join(' + '):'')+'</div>'+
-      '<div class="bar low"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
+      '<div class="bar'+(sh>0?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
       '<div><div class="meta">'+(MATS[m].s.length?'Break these down:':'Where to find:')+'</div><div class="chips">'+srcChips(m,6)+'</div>'+(MATS[m].f?'<div class="meta" style="margin-top:6px">'+esc(MATS[m].f)+'</div>':'')+'</div></div>';
   });
   h+='</div>';
