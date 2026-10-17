@@ -305,7 +305,8 @@ function compute(){
   function req(m,q){
     need[m]+=q;var u=Math.min(rem[m],q);rem[m]-=u;var net=q-u;
     if(net>0){var r=MATS[m].r;
-      if(S.expand&&r&&!path[m]){path[m]=1;var cr=Math.ceil(net/(r.y||1));for(var c in r.i)req(c,cr*r.i[c]);delete path[m]}else short[m]+=net}
+      short[m]+=net; // being low on the part itself always counts as short
+      if(S.expand&&r&&!path[m]){path[m]=1;var cr=Math.ceil(net/(r.y||1));for(var c in r.i)req(c,cr*r.i[c]);delete path[m]}}
   }
   var act=allItems().filter(function(it){return isActive(it)&&!S.ign[it.id]&&planCrafts(it)>0});
   act.forEach(function(it){it._gap=directShort(it,planCrafts(it)).reduce(function(a,b){return a+b[1]},0)});
@@ -339,17 +340,20 @@ function compute(){
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function step(key,val){return '<span class="step"><button type="button" data-a="dec" data-k="'+key+'" aria-label="decrease">−</button><input type="number" min="0" inputmode="numeric" id="in-'+key+'" data-k="'+key+'" value="'+val+'"><button type="button" data-a="inc" data-k="'+key+'" aria-label="increase">+</button></span>'}
 function srcChips(m,max){var s=MATS[m].s.slice(0,max);if(!s.length)return '';return s.map(function(x){return '<span class="chip src">'+esc(x[0])+' ×'+x[1]+'</span>'}).join('')}
+// A refined part you hold too few of, but whose raw materials you have: it is not counted as short (the raw materials are), yet it still needs refining.
+function refCov(m,C){return !!(S.expand&&MATS[m]&&MATS[m].r&&C.need[m]>g(S.have,m)&&C.short[m]===0)}
+function medScore(m,C){return C.extra[m]+(refCov(m,C)?C.need[m]-g(S.have,m):0)}
 function viewLoot(C){
   var usedM=usedMats();
-  var tier=function(m){return C.short[m]>0?(C.pinBy[m]?0:1):(C.extra[m]>0&&usedM[m]?2:3)};
+  var tier=function(m){return C.short[m]>0?(C.pinBy[m]?0:1):((C.extra[m]>0&&usedM[m])||refCov(m,C)?2:3)};
   var ratio=function(m){return C.need[m]?C.short[m]/C.need[m]:0};
-  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m]||(usedM[m]&&C.extra[m]>0))&&!S.hideMat[m]}).sort(function(a,b){return tier(a)-tier(b)||(tier(a)===2?(C.extra[b]-C.extra[a]):(ratio(b)-ratio(a)||C.short[b]-C.short[a]))||C.need[b]-C.need[a]||a.localeCompare(b)});
+  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m]||(usedM[m]&&C.extra[m]>0)||refCov(m,C))&&!S.hideMat[m]}).sort(function(a,b){return tier(a)-tier(b)||(tier(a)===2?(medScore(b,C)-medScore(a,C)):(ratio(b)-ratio(a)||C.short[b]-C.short[a]))||C.need[b]-C.need[a]||a.localeCompare(b)});
   var TIERS=["High priority: prioritized items you are short on","Short: not enough for your current targets","Medium: close, one more craft of each item would leave you short","Stocked: prioritized items you have enough of"],lastTier=-1;
   var pins=allItems().filter(function(it){return S.pin[it.id]&&isActive(it)&&!S.ign[it.id]});
   var hidden=MATNAMES.filter(function(m){return S.hideMat[m]});
   var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0&&!C.pinBy[m]&&!(C.extra[m]>0)&&g(S.have,m)>=C.need[m]});
   var refine=S.expand?MATNAMES.filter(function(m){return MATS[m].r&&C.need[m]>g(S.have,m)&&C.short[m]===0&&!S.hideMat[m]}):[];
-  var h='<div class="toolbar"><label><input type="checkbox" id="expand" '+(S.expand?'checked':'')+'> Count refined parts as the raw materials they are made from</label></div>';
+  var h='<div class="toolbar"><label><input type="checkbox" id="expand" '+(S.expand?'checked':'')+'> Also count the raw materials needed to refine parts you are short on</label></div>';
   h+=watchHtml();
   if(pins.length){
     h+='<h2>Prioritized items</h2><div class="chips">'+pins.map(function(it){var sh=directShort(it,planCrafts(it));return '<span class="chip'+(sh.length?'':' need')+'">'+esc(it.name)+(sh.length?' · short '+sh.map(function(x){return x[0]+' ×'+x[1]}).join(', '):' · ready to craft')+'</span>'}).join('')+'</div>';
@@ -364,7 +368,7 @@ function viewLoot(C){
     var pn=C.pinBy[m]||[];
     var users=(C.by[m]||[]).slice(0,4).map(function(n){return '<span class="chip">'+esc(n)+'</span>'}).join('');
     var stocked=sh===0&&have>=need,close=tr===2;
-    var pill=sh>0?'<span class="pill bad">need '+sh+' more</span>':close?'<span class="pill warn">close · '+C.extra[m]+' short after one more of each</span>':stocked?'<span class="pill ok">stocked</span>':'<span class="pill idle">refine '+(need-have)+'</span>';
+    var pill=sh>0?'<span class="pill bad">need '+sh+' more</span>':refCov(m,C)?'<span class="pill warn">refine '+(need-have)+' more · raw materials cover it</span>':close?'<span class="pill warn">close · '+C.extra[m]+' short after one more of each</span>':stocked?'<span class="pill ok">stocked</span>':'<span class="pill idle">refine '+(need-have)+'</span>';
     h+='<div class="row'+(tr===0?' crit':tr===1?' hot':tr===2?' med':'')+'"><div><h3>'+(idx+1)+'. '+esc(m)+' '+pill+''+(pn.length?' <span class="pill '+(sh>0?'pri':'pri2')+'">Prioritized</span>':'')+' <button class="btn small" data-a="hidemat" data-m="'+esc(m)+'" title="Stop showing this material in the list">Hide</button></h3>'+
       '<div class="meta">Have <span class="nums">'+have+'</span>'+(need?' of <span class="nums">'+need+'</span> needed':' · not needed for current targets')+(r?' · can be refined at '+esc(r.st)+' from '+Object.keys(r.i).map(function(k){return r.i[k]+' '+k}).join(' + '):'')+'</div>'+
       '<div class="bar'+(sh>0?' crit':close?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
@@ -455,10 +459,10 @@ function viewMats(C){
   MATNAMES.forEach(function(m){
     if(!used[m])return;
     if(D.matq&&m.toLowerCase().indexOf(D.matq.toLowerCase())<0)return;
-    groups[C.short[m]>0?'short':(C.extra[m]>0?'low':'good')].push(m);
+    groups[C.short[m]>0?'short':((C.extra[m]>0||refCov(m,C))?'low':'good')].push(m);
   });
   groups.short.sort(function(a,b){return C.short[b]-C.short[a]||a.localeCompare(b)});
-  groups.low.sort(function(a,b){return C.extra[b]-C.extra[a]||a.localeCompare(b)});
+  groups.low.sort(function(a,b){return medScore(b,C)-medScore(a,C)||a.localeCompare(b)});
   groups.good.sort(function(a,b){return a.localeCompare(b)});
   var META={short:['Short for your targets','bad','Short'],low:['Close: one more craft of each item would leave you short','warn','Close'],good:['Well stocked','ok','Well stocked']};
   ['short','low','good'].forEach(function(k){
@@ -469,7 +473,7 @@ function viewMats(C){
       var cn=S.watch.filter(function(w){return w.name===m}).reduce(function(a,w){return a+w.need},0);
       if(cn)base+=' (incl. '+cn+' for challenge)';
       if(k==='short')note=' · short '+C.short[m];
-      else if(k==='low')note=' · '+C.extra[m]+' short if you craft one of each item that uses it';
+      else if(k==='low')note=refCov(m,C)?' · have '+g(S.have,m)+', refine '+(need-g(S.have,m))+' more at '+MATS[m].r.st+' from raw materials you have':' · '+C.extra[m]+' short if you craft one of each item that uses it';
       else note=' · reserve covers one more of each';
       h+='<div class="mcell m-'+k+'"><div class="nm"><strong>'+esc(m)+'</strong><span class="meta">'+esc(base+note)+'</span></div>'+step('m:'+m,g(S.have,m))+'</div>';
     });
