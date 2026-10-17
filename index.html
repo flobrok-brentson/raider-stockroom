@@ -1,5 +1,11 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0}</style></head><body>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root{color-scheme:light}body{margin:0}</style>
+</head>
+<body>
 <title>Raider Stockroom</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -41,7 +47,8 @@ h2{font:700 22px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercas
 .toolbar label{display:flex;gap:6px;align-items:center}
 .list{display:flex;flex-direction:column;gap:8px}
 .row{background:var(--surface);border:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:10px 16px;align-items:center}
-.row.hot{border-left:4px solid var(--warn)}
+.row.hot{border-left:4px solid var(--bad)}
+.row.med{border-left:4px solid var(--warn)}
 .row h3{margin:0;font:600 16px var(--body)}
 .meta{font-size:12.5px;color:var(--muted)}
 .bar{height:8px;background:var(--track);margin-top:6px;position:relative}
@@ -62,9 +69,10 @@ h2{font:700 22px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercas
 .chk{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
 .chk.pri{color:var(--ink);font-weight:600}
 .chk input{width:16px;height:16px;accent-color:var(--accent)}
-.row.crit{border-left:4px solid var(--bad)}
+.row.crit{border-left:4px solid var(--bad);background:var(--bad-bg)}
 .bar.crit i{background:var(--bad)}
-.tier.t0{color:var(--bad)}
+.tier.t0,.tier.t1{color:var(--bad)}
+.tier.t2{color:var(--warn)}
 .mcell.m-short{border-left:4px solid var(--bad)}
 .mcell.m-low{border-left:4px solid var(--warn)}
 .mcell.m-good{border-left:4px solid var(--ok)}
@@ -332,13 +340,14 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;
 function step(key,val){return '<span class="step"><button type="button" data-a="dec" data-k="'+key+'" aria-label="decrease">−</button><input type="number" min="0" inputmode="numeric" id="in-'+key+'" data-k="'+key+'" value="'+val+'"><button type="button" data-a="inc" data-k="'+key+'" aria-label="increase">+</button></span>'}
 function srcChips(m,max){var s=MATS[m].s.slice(0,max);if(!s.length)return '';return s.map(function(x){return '<span class="chip src">'+esc(x[0])+' ×'+x[1]+'</span>'}).join('')}
 function viewLoot(C){
-  var tier=function(m){return C.short[m]>0?(C.pinBy[m]?0:1):2};
+  var usedM=usedMats();
+  var tier=function(m){return C.short[m]>0?(C.pinBy[m]?0:1):(C.extra[m]>0&&usedM[m]?2:3)};
   var ratio=function(m){return C.need[m]?C.short[m]/C.need[m]:0};
-  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m])&&!S.hideMat[m]}).sort(function(a,b){return tier(a)-tier(b)||ratio(b)-ratio(a)||C.short[b]-C.short[a]||C.need[b]-C.need[a]||a.localeCompare(b)});
-  var TIERS=["High priority: prioritized items you are short on","Needed: short for your current targets","Stocked: prioritized items you have enough of"],lastTier=-1;
+  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m]||(usedM[m]&&C.extra[m]>0))&&!S.hideMat[m]}).sort(function(a,b){return tier(a)-tier(b)||(tier(a)===2?(C.extra[b]-C.extra[a]):(ratio(b)-ratio(a)||C.short[b]-C.short[a]))||C.need[b]-C.need[a]||a.localeCompare(b)});
+  var TIERS=["High priority: prioritized items you are short on","Short: not enough for your current targets","Medium: close, one more craft of each item would leave you short","Stocked: prioritized items you have enough of"],lastTier=-1;
   var pins=allItems().filter(function(it){return S.pin[it.id]&&isActive(it)&&!S.ign[it.id]});
   var hidden=MATNAMES.filter(function(m){return S.hideMat[m]});
-  var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0&&!C.pinBy[m]&&g(S.have,m)>=C.need[m]});
+  var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0&&!C.pinBy[m]&&!(C.extra[m]>0)&&g(S.have,m)>=C.need[m]});
   var refine=S.expand?MATNAMES.filter(function(m){return MATS[m].r&&C.need[m]>g(S.have,m)&&C.short[m]===0&&!S.hideMat[m]}):[];
   var h='<div class="toolbar"><label><input type="checkbox" id="expand" '+(S.expand?'checked':'')+'> Count refined parts as the raw materials they are made from</label></div>';
   h+=watchHtml();
@@ -354,11 +363,11 @@ function viewLoot(C){
     var r=MATS[m].r;
     var pn=C.pinBy[m]||[];
     var users=(C.by[m]||[]).slice(0,4).map(function(n){return '<span class="chip">'+esc(n)+'</span>'}).join('');
-    var stocked=sh===0&&have>=need,refining=sh===0&&have<need;
-    var pill=sh>0?'<span class="pill '+(pn.length?'bad':'warn')+'">need '+sh+' more</span>':stocked?'<span class="pill ok">stocked</span>':'<span class="pill idle">refine '+(need-have)+'</span>';
-    h+='<div class="row'+(sh>0?(pn.length?' crit':' hot'):'')+'"><div><h3>'+(idx+1)+'. '+esc(m)+' '+pill+''+(pn.length?' <span class="pill '+(sh>0?'pri':'pri2')+'">Prioritized</span>':'')+' <button class="btn small" data-a="hidemat" data-m="'+esc(m)+'" title="Stop showing this material in the list">Hide</button></h3>'+
-      '<div class="meta">Have <span class="nums">'+have+'</span> of <span class="nums">'+need+'</span> needed'+(r?' · can be refined at '+esc(r.st)+' from '+Object.keys(r.i).map(function(k){return r.i[k]+' '+k}).join(' + '):'')+'</div>'+
-      '<div class="bar'+(sh>0?(pn.length?' crit':' low'):'')+'"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
+    var stocked=sh===0&&have>=need,close=tr===2;
+    var pill=sh>0?'<span class="pill bad">need '+sh+' more</span>':close?'<span class="pill warn">close · '+C.extra[m]+' short after one more of each</span>':stocked?'<span class="pill ok">stocked</span>':'<span class="pill idle">refine '+(need-have)+'</span>';
+    h+='<div class="row'+(tr===0?' crit':tr===1?' hot':tr===2?' med':'')+'"><div><h3>'+(idx+1)+'. '+esc(m)+' '+pill+''+(pn.length?' <span class="pill '+(sh>0?'pri':'pri2')+'">Prioritized</span>':'')+' <button class="btn small" data-a="hidemat" data-m="'+esc(m)+'" title="Stop showing this material in the list">Hide</button></h3>'+
+      '<div class="meta">Have <span class="nums">'+have+'</span>'+(need?' of <span class="nums">'+need+'</span> needed':' · not needed for current targets')+(r?' · can be refined at '+esc(r.st)+' from '+Object.keys(r.i).map(function(k){return r.i[k]+' '+k}).join(' + '):'')+'</div>'+
+      '<div class="bar'+(sh>0?' crit':close?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
       '<div><div class="meta">'+(MATS[m].s.length?'Break these down:':'Where to find:')+'</div><div class="chips">'+srcChips(m,6)+'</div>'+(MATS[m].f?'<div class="meta" style="margin-top:6px">'+esc(MATS[m].f)+'</div>':'')+'</div></div>';
   });
   h+='</div>';
@@ -586,4 +595,5 @@ mergeData();buildIdx();load();render();initCloud();
 })();
 </script>
 
-</body></html>
+</body>
+</html>
