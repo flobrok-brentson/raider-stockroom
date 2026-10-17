@@ -374,9 +374,17 @@ function viewItems(C){
   if(gone.length)h+='<h2>Deleted items</h2><div class="chips">'+gone.map(function(i){return '<span class="chip">'+esc(i.name)+' <button class="btn small" data-a="restoreitem" data-id="'+i.id+'">Restore</button></span>'}).join('')+'</div>';
   return h;
 }
+function usedMats(){
+  var used={};
+  function add(m){if(used[m])return;used[m]=1;var r=MATS[m]&&MATS[m].r;if(S.expand&&r)for(var c in r.i)add(c)}
+  allItems().forEach(function(it){for(var m in it.r)add(m)});
+  return used;
+}
 function viewMats(C){
-  var h='<div class="toolbar">Enter what is in your stash and bags.</div><div class="addbar"><input type="search" id="matq" placeholder="Filter materials" value="'+esc(D.matq||'')+'" autocomplete="off"></div><div class="grid">';
+  var used=usedMats();
+  var h='<div class="toolbar">Enter what is in your stash and bags. This list shows only materials used by the items on your Crafted Items tab'+(S.expand?', including the raw materials for refined parts':'')+'. Counts you entered for other materials are kept.</div><div class="addbar"><input type="search" id="matq" placeholder="Filter materials" value="'+esc(D.matq||'')+'" autocomplete="off"></div><div class="grid">';
   MATNAMES.forEach(function(m){
+    if(!used[m])return;
     if(D.matq&&m.toLowerCase().indexOf(D.matq.toLowerCase())<0)return;
     var need=C.need[m],low=C.short[m]>0;
     h+='<div class="mcell"><div class="nm"><strong>'+esc(m)+'</strong><span class="meta">'+(need?'Needed '+need+(low?' · short '+C.short[m]:''):'Not needed now')+'</span></div>'+step('m:'+m,g(S.have,m))+'</div>';
