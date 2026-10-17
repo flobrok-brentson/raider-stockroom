@@ -61,6 +61,7 @@ h2{font:700 22px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercas
 .chk{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
 .chk.pri{color:var(--ink);font-weight:600}
 .chk input{width:16px;height:16px;accent-color:var(--accent)}
+.tier{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:8px}
 .addbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .addbar input[type=text],.addbar input[type=search]{flex:1;min-width:180px;max-width:420px;font:400 14px var(--body);padding:8px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 .addbar input[type=number]{width:76px;font:400 14px var(--mono);padding:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
@@ -180,6 +181,25 @@ function mergeData(){
   });
   MATNAMES=Object.keys(MATS);
 }
+var BCAT={anvil:"Weapons",hull:"Weapons",ebii:"Weapon Mods",hammo:"Ammo",lammo:"Ammo",trig:"Grenades & Explosives",seek:"Grenades & Explosives",wolf:"Grenades & Explosives",herb:"Healing",recharge:"Shields",lshield:"Shields",loot3:"Augments",grap:"Gadgets & Utility",cloak:"Gadgets & Utility"};
+ITEMS.forEach(function(i){if(BCAT[i.id])i.cat=BCAT[i.id]});
+var CAT_ORDER=["Weapons","Weapon Mods","Ammo","Grenades & Explosives","Healing","Shields","Augments","Gadgets & Utility","Other"];
+var WEAPON_TYPES={"Assault Rifle":1,"Pistol":1,"SMG":1,"Shotgun":1,"Battle Rifle":1,"Sniper Rifle":1,"LMG":1,"Hand Cannon":1,"Weapon":1};
+function catRank(c){var i=CAT_ORDER.indexOf(c);return i<0?99:i}
+function itemCat(it){
+  if(it.cat)return it.cat;
+  var id=(it.game&&it.id.indexOf("g_")===0)?it.id.slice(2):DBN[it.name.toLowerCase()];
+  var e=id&&DB[id],t=e?e.t:"",n=it.name.toLowerCase();
+  if(WEAPON_TYPES[t])return "Weapons";
+  if(t==="Modification")return "Weapon Mods";
+  if(t==="Ammunition")return "Ammo";
+  if(t==="Augment")return "Augments";
+  if(t==="Shield"||/shield/.test(n))return "Shields";
+  if(/grenade|'nade|wolfpack|\bmine\b|trap|blast|bomb|explosive|firework|flare/.test(n))return "Grenades & Explosives";
+  if(/bandage|shot|stim|defibrillator|antiseptic|vita|syringe|medkit|splint/.test(n))return "Healing";
+  if(t==="Quick Use"||t==="Special"||t==="Misc"||t==="")return "Gadgets & Utility";
+  return "Other";
+}
 function gameCraftables(){
   var have={};allItems().forEach(function(i){have[i.name.toLowerCase()]=1});
   return Object.keys(DB).filter(function(id){return DB[id].rc&&!have[DB[id].n.toLowerCase()]}).sort(function(a,b){return DB[a].n.localeCompare(DB[b].n)});
@@ -280,7 +300,10 @@ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;
 function step(key,val){return '<span class="step"><button type="button" data-a="dec" data-k="'+key+'" aria-label="decrease">−</button><input type="number" min="0" inputmode="numeric" id="in-'+key+'" data-k="'+key+'" value="'+val+'"><button type="button" data-a="inc" data-k="'+key+'" aria-label="increase">+</button></span>'}
 function srcChips(m,max){var s=MATS[m].s.slice(0,max);if(!s.length)return '';return s.map(function(x){return '<span class="chip src">'+esc(x[0])+' ×'+x[1]+'</span>'}).join('')}
 function viewLoot(C){
-  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m])&&!S.hideMat[m]}).sort(function(a,b){return (C.pinBy[b]?1:0)-(C.pinBy[a]?1:0)||C.short[b]-C.short[a]||C.need[b]-C.need[a]});
+  var tier=function(m){return C.short[m]>0?(C.pinBy[m]?0:1):2};
+  var ratio=function(m){return C.need[m]?C.short[m]/C.need[m]:0};
+  var rows=MATNAMES.filter(function(m){return (C.short[m]>0||C.pinBy[m])&&!S.hideMat[m]}).sort(function(a,b){return tier(a)-tier(b)||ratio(b)-ratio(a)||C.short[b]-C.short[a]||C.need[b]-C.need[a]||a.localeCompare(b)});
+  var TIERS=["High priority: prioritized items you are short on","Needed: short for your current targets","Stocked: prioritized items you have enough of"],lastTier=-1;
   var pins=allItems().filter(function(it){return S.pin[it.id]&&isActive(it)&&!S.ign[it.id]});
   var hidden=MATNAMES.filter(function(m){return S.hideMat[m]});
   var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0&&!C.pinBy[m]&&g(S.have,m)>=C.need[m]});
@@ -293,6 +316,7 @@ function viewLoot(C){
   h+='<h2>Go loot these</h2><div class="list">';
   if(!rows.length)h+='<div class="empty">Every target is covered. Raise a target on the Crafted Items tab to get a new list.</div>';
   rows.forEach(function(m,idx){
+    var tr=tier(m);if(tr!==lastTier){h+='<div class="tier">'+TIERS[tr]+'</div>';lastTier=tr}
     var need=C.need[m],have=g(S.have,m),sh=C.short[m];
     var pct=need?Math.min(100,Math.round(have/need*100)):0;
     var r=MATS[m].r;
@@ -355,9 +379,11 @@ function viewItems(C){
       '<div class="addbar"><button class="btn small" data-a="adding">+ Add ingredient</button></div>'+
       (D.err?'<div class="meta" style="color:var(--bad);margin-bottom:6px">'+esc(D.err)+'</div>':'')+'<button class="btn primary" data-a="addcustom">Add item</button></div>';
   }
-  h+='<div class="list">';
-  allItems().forEach(function(it){
+  var lastCat=null,openList=false;
+  allItems().slice().sort(function(a,b){return catRank(itemCat(a))-catRank(itemCat(b))||a.name.localeCompare(b.name)}).forEach(function(it){
     if(D.itemq&&it.name.toLowerCase().indexOf(D.itemq.toLowerCase())<0)return;
+    var cat=itemCat(it);
+    if(cat!==lastCat){if(openList)h+='</div>';h+='<h2>'+esc(cat)+'</h2><div class="list">';lastCat=cat;openList=true}
     var f=C.info[it.id],recipe=Object.keys(it.r).map(function(k){return it.r[k]+' '+k}).join(', ');
     var miss=f.short.length&&isActive(it)&&f.n>0?'<div class="meta">Short: '+f.short.map(function(x){return x[0]+' ×'+x[1]}).join(', ')+'</div>':'';
     h+='<div class="row irow"><div><h3>'+esc(it.name)+' <span class="pill '+f.cls+'">'+esc(f.st)+'</span></h3>'+
@@ -369,7 +395,7 @@ function viewItems(C){
       '<label class="chk pri"><input type="checkbox" data-pin="'+it.id+'" '+(S.pin[it.id]?'checked':'')+'> Prioritize</label>'+
       '<label class="chk"><input type="checkbox" data-ign="'+it.id+'" '+(S.ign[it.id]?'checked':'')+'> Hide from loot list</label>'+'<button class="btn small" data-a="rmitem" data-id="'+it.id+'">Delete item</button>'+'</div></div>';
   });
-  h+='</div>';
+  if(openList)h+='</div>';
   var gone=ITEMS.filter(function(i){return S.removed[i.id]});
   if(gone.length)h+='<h2>Deleted items</h2><div class="chips">'+gone.map(function(i){return '<span class="chip">'+esc(i.name)+' <button class="btn small" data-a="restoreitem" data-id="'+i.id+'">Restore</button></span>'}).join('')+'</div>';
   return h;
