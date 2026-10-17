@@ -57,6 +57,17 @@ h2{font:700 22px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercas
 .pill.warn{background:var(--warn-bg);color:var(--warn)}
 .pill.bad{background:var(--bad-bg);color:var(--bad)}
 .pill.idle{background:var(--track);color:var(--muted)}
+.pill.pri{background:var(--accent);color:var(--accent-ink)}
+.chk{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
+.chk.pri{color:var(--ink);font-weight:600}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.addbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.addbar input[type=text],.addbar input[type=search]{flex:1;min-width:180px;max-width:420px;font:400 14px var(--body);padding:8px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.addbar input[type=number]{width:76px;font:400 14px var(--mono);padding:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.formbox{background:var(--surface);border:1px solid var(--line);padding:12px;margin-bottom:12px}
+.formbox input[type=text]{width:100%}
+.wrow{grid-template-columns:minmax(0,1.4fr) auto auto auto}
+.chip .btn{margin-left:4px}
 .step{display:inline-flex;align-items:stretch;border:1px solid var(--line)}
 .step button{width:30px;background:var(--surface);color:var(--ink);border:0;font:600 16px var(--mono);cursor:pointer}
 .step input{width:54px;text-align:center;border:0;border-inline:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 14px var(--mono);padding:5px 2px;-moz-appearance:textfield}
@@ -76,7 +87,7 @@ th{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color
 .note{font-size:12.5px;color:var(--muted);margin-top:18px;max-width:80ch}
 .empty{color:var(--muted);padding:14px;border:1px dashed var(--line)}
 @media (max-width:640px){
-  .row,.irow{grid-template-columns:1fr}
+  .row,.irow,.wrow{grid-template-columns:1fr}
   h1{font-size:30px}
 }
 @media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s}}
@@ -144,14 +155,27 @@ var ITEMS=[
  {id:"recharge",name:"Shield Recharger",st:"Workbench (Medical Lab unlocked)",y:1,bp:1,r:{"Rubber Parts":5,"ARC Powercell":1}},
  {id:"wolf",name:"Wolfpack",st:"Explosives Station 3",y:1,bp:0,r:{"Explosive Compound":1,"ARC Motion Core":2,"Rocketeer Driver":1}}
 ];
-var ITEMBYID={};ITEMS.forEach(function(i){ITEMBYID[i.id]=i});
 var MATNAMES=Object.keys(MATS);
+// Extra item names (from the wiki item list) so they can be searched and tracked even without recipe data.
+var EXTRA=["Acoustic Guitar","Adrenaline Shot","Advanced Camera","Agave Juice","Bandage","Banjo","Barricade Kit","Basic Camera","Binoculars","Integrated Binoculars","Blaze Grenade","Blaze Grenade Trap","Blue Light Stick","Advanced ARC Powercell","Amplification Module Mk. I","Amplification Module Mk. II","Amplification Module Mk. III","Amplification Module Mk. IV","Amplification Module Mk. V","Amplified Fragments","ARC Circuitry","ARC Conductive Coupler","ARC Insulated Coupler","ARC Plated Coupler","Battery","Antiseptic","Agave","Apricot","Assorted Seeds","Alarm Clock","ARC Coolant","ARC Flex Rubber","ARC Performance Steel","ARC Synthetic Resin","ARC Thermo Lining","Assessor Matrix","Bastion Cell","Bicycle Pump","Air Freshener","Alien Duck","Anvil Splitter","ARC Data Module","Arcade Duck","Archive Desk Lamp","Battered Paperback","Bloated Tuna Can","Blue Gate Cellar Key","Blue Gate Village Key","Blue Gate Communication Tower Key","Blue Gate Confiscation Room Key","Angled Grip I","Angled Grip II","Angled Grip III","Advanced Camera Blueprint","Angled Grip II Blueprint","Angled Grip III Blueprint","Anvil Blueprint","Aphelion Blueprint","Bantam Blueprint","Barricade Kit Blueprint","Bettina Blueprint","Blaze Grenade Blueprint","Blue Light Stick Blueprint","Bobcat Blueprint","Burletta Blueprint","Canto Blueprint","Combat Mk. 3 (Aggressive) Blueprint","Combat Mk. 3 (Flanking) Blueprint","Compensator II Blueprint","Compensator III Blueprint","Complex Gun Parts Blueprint","Crash Mat Blueprint","Deadline Blueprint","Defibrillator Blueprint","Dolabra Blueprint","Emperor Gateway Conduit Blueprint","Equalizer Blueprint","Explosive Mine Blueprint","Extended Barrel II Blueprint","Extended Barrel III Blueprint","Extended Light Mag II Blueprint","Extended Light Mag III Blueprint","Extended Medium Mag II Blueprint","Extended Medium Mag III Blueprint","Hullcracker Blueprint","Wolfpack Blueprint","Trigger 'Nade Blueprint","Seeker Grenade Blueprint","Grappling Hook Blueprint","Heavy Gun Parts Blueprint","Looting Mk. 3 (Cautious) Blueprint","Looting Mk. 3 (Safekeeper)","Looting Mk. 3 (Survivor)","Combat Mk. 3 (Aggressive)","Combat Mk. 3 (Flanking)","Tactical Mk. 3 (Defensive)","Tactical Mk. 3 (Healing)","Tactical Mk. 3 (Revival)","Tactical Mk. 3 (Smoke)","Medium Shield","Heavy Shield","Light Shield","Rascal","Vulcano","Bettina","Bobcat","Tempest","Osprey","Venator","Torrente","Renegade","Il Toro","Arpeggio","Rattler","Stiletto"];
+function allItems(){return ITEMS.concat((S&&S.custom)||[])}
+function itemById(id){var a=allItems();for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return null}
+function ensureMats(){((S&&S.custom)||[]).forEach(function(it){for(var m in it.r){if(!MATS[m])MATS[m]={s:[],f:"Custom material you added."}}});MATNAMES=Object.keys(MATS)}
+var D={};  // text boxes and form drafts, kept across re-renders
+function catNames(){var set={};function add(n){set[n.toLowerCase()]=n}
+  MATNAMES.forEach(add);Object.keys(IDX||{}).forEach(add);allItems().forEach(function(i){add(i.name)});EXTRA.forEach(add);return set}
+function canon(n){n=String(n).trim();return catNames()[n.toLowerCase()]||n}
+function parseIng(t){var out={},map=catNames();
+  String(t).split(/[,\n;+]/).forEach(function(p){p=p.trim();if(!p)return;var q=1,n=p,m=p.match(/^(\d+)\s*[x×]?\s*(.+)$/i);
+    if(m){q=+m[1];n=m[2]}else{var m2=p.match(/^(.+?)\s*[x×]\s*(\d+)$/i);if(m2){n=m2[1];q=+m2[2]}}
+    n=n.trim();if(!n||q<1)return;n=map[n.toLowerCase()]||n;out[n]=(out[n]||0)+q});
+  return out}
 // Example numbers shown on first open. "Reset" clears them.
 function example(){
   var have={"Plastic Parts":6,"ARC Alloy":5,"Metal Parts":18,"Chemicals":9,"Wires":4,"Processor":2,"Mechanical Components":2,"Rubber Parts":7,"Crude Explosives":1,"Rope":1,"Steel Spring":3,"Simple Gun Parts":6,"Hand Drill":1,"Great Mullein":1,"Durable Cloth":1,"ARC Powercell":1};
   return {have:have,owned:{hammo:8,lammo:0,lshield:1,herb:1,recharge:0,seek:1,trig:0,grap:0,cloak:0,loot3:0,anvil:0,ebii:0},
     target:{hammo:30,lammo:12,lshield:2,herb:5,recharge:3,seek:4,trig:4,grap:1,cloak:1,loot3:1,anvil:1,ebii:1,hull:1,wolf:2},
-    bp:{hull:false,wolf:false},expand:true,example:true,tab:"loot"};
+    bp:{hull:false,wolf:false},watch:[{id:"wex",name:"Cooling Fan",need:3,have:1}],expand:true,example:true,tab:"loot"};
 }
 var S=null;
 /* ---------- STATE / SAVE ---------- */
@@ -160,7 +184,9 @@ function clean(o){return JSON.parse(JSON.stringify(o))}
 function load(){
   try{var t=localStorage.getItem(LS);if(t){S=JSON.parse(t)}}catch(e){}
   if(!S)S=example();
+  norm();
 }
+function norm(){S.have=S.have||{};S.owned=S.owned||{};S.target=S.target||{};S.bp=S.bp||{};S.pin=S.pin||{};S.ign=S.ign||{};S.watch=S.watch||[];S.hideMat=S.hideMat||{};S.custom=S.custom||[];if(!S.tab)S.tab="loot";ensureMats()}
 function save(){
   clearTimeout(saveT);
   saveT=setTimeout(function(){
@@ -178,7 +204,7 @@ function initCloud(){
       dbDoc=db.collection("data/users/"+id).doc("stockroom");
       return dbDoc.get().then(function(snap){
         if(snap.exists&&snap.data()&&snap.data().json){
-          try{S=JSON.parse(snap.data().json);render()}catch(e){}
+          try{S=JSON.parse(snap.data().json);norm();render()}catch(e){}
         }else{save()}
       });
     });
@@ -188,61 +214,99 @@ function initCloud(){
 function isActive(it){var b=S.bp[it.id];if(b===undefined)b=!!it.bp;return !!b}
 function g(map,k){return +(map&&map[k])||0}
 function craftsNeeded(it){var d=Math.max(0,g(S.target,it.id)-g(S.owned,it.id));return Math.ceil(d/it.y)}
+// Prioritized items always plan at least one craft, even when the target is already met.
+function planCrafts(it){var n=craftsNeeded(it);return(S.pin[it.id]&&n<1)?1:n}
 function directShort(it,crafts){var out=[];for(var m in it.r){var need=it.r[m]*crafts,h=g(S.have,m);if(h<need)out.push([m,need-h])}return out}
 function compute(){
   var rem={};MATNAMES.forEach(function(m){rem[m]=g(S.have,m)});
   var need={},short={};
   MATNAMES.forEach(function(m){need[m]=0;short[m]=0});
-  var by={};
+  var by={},pinBy={};
   function req(m,q){
     need[m]+=q;var u=Math.min(rem[m],q);rem[m]-=u;var net=q-u;
     if(net>0){var r=MATS[m].r;
       if(S.expand&&r){for(var c in r)req(c,net*r[c])}else short[m]+=net}
   }
-  var act=ITEMS.filter(function(it){return isActive(it)&&craftsNeeded(it)>0});
-  act.forEach(function(it){it._gap=directShort(it,craftsNeeded(it)).reduce(function(a,b){return a+b[1]},0)});
-  act.sort(function(a,b){return a._gap-b._gap});
-  act.forEach(function(it){var n=craftsNeeded(it);for(var m in it.r)req(m,it.r[m]*n);for(var m2 in it.r){(by[m2]=by[m2]||[]).push(it.name)}});
+  var act=allItems().filter(function(it){return isActive(it)&&!S.ign[it.id]&&planCrafts(it)>0});
+  act.forEach(function(it){it._gap=directShort(it,planCrafts(it)).reduce(function(a,b){return a+b[1]},0)});
+  act.sort(function(a,b){return (S.pin[b.id]?1:0)-(S.pin[a.id]?1:0)||a._gap-b._gap});
+  act.forEach(function(it){var n=planCrafts(it);for(var m in it.r)req(m,it.r[m]*n);for(var m2 in it.r){(by[m2]=by[m2]||[]).push(it.name);if(S.pin[it.id])(pinBy[m2]=pinBy[m2]||[]).push(it.name)}});
   var info={};
-  ITEMS.forEach(function(it){
+  allItems().forEach(function(it){
     var n=craftsNeeded(it),act2=isActive(it),can=Infinity;
     for(var m in it.r)can=Math.min(can,Math.floor(g(S.have,m)/it.r[m]));
     var st,cls;
     if(!act2){st="Blueprint missing";cls="bad"}
+    else if(S.ign[it.id]){st="Hidden from loot list";cls="idle"}
     else if(n===0){st="At target";cls="ok"}
     else if(can>=1){st="Craft "+Math.min(can,n)+" now";cls="warn"}
     else{st="Missing materials";cls="idle"}
     info[it.id]={n:n,can:can,st:st,cls:cls,short:directShort(it,Math.max(1,n))};
   });
-  return {need:need,short:short,by:by,info:info};
+  return {need:need,short:short,by:by,pinBy:pinBy,info:info};
 }
 /* ---------- RENDER ---------- */
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function step(key,val){return '<span class="step"><button type="button" data-a="dec" data-k="'+key+'" aria-label="decrease">−</button><input type="number" min="0" inputmode="numeric" id="in-'+key+'" data-k="'+key+'" value="'+val+'"><button type="button" data-a="inc" data-k="'+key+'" aria-label="increase">+</button></span>'}
 function srcChips(m,max){var s=MATS[m].s.slice(0,max);if(!s.length)return '';return s.map(function(x){return '<span class="chip src">'+esc(x[0])+' ×'+x[1]+'</span>'}).join('')}
 function viewLoot(C){
-  var rows=MATNAMES.filter(function(m){return C.short[m]>0}).sort(function(a,b){return C.short[b]-C.short[a]});
+  var rows=MATNAMES.filter(function(m){return C.short[m]>0&&!S.hideMat[m]}).sort(function(a,b){return (C.pinBy[b]?1:0)-(C.pinBy[a]?1:0)||C.short[b]-C.short[a]});
+  var pins=allItems().filter(function(it){return S.pin[it.id]&&isActive(it)&&!S.ign[it.id]});
+  var hidden=MATNAMES.filter(function(m){return S.hideMat[m]});
   var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0});
   var h='<div class="toolbar"><label><input type="checkbox" id="expand" '+(S.expand?'checked':'')+'> Count refined parts as the raw materials they are made from</label></div>';
+  h+=watchHtml();
+  if(pins.length){
+    h+='<h2>Prioritized items</h2><div class="chips">'+pins.map(function(it){var sh=directShort(it,planCrafts(it));return '<span class="chip'+(sh.length?'':' need')+'">'+esc(it.name)+(sh.length?' · short '+sh.map(function(x){return x[0]+' ×'+x[1]}).join(', '):' · ready to craft')+'</span>'}).join('')+'</div>';
+  }
   h+='<h2>Go loot these</h2><div class="list">';
   if(!rows.length)h+='<div class="empty">Every target is covered. Raise a target on the Crafted Items tab to get a new list.</div>';
   rows.forEach(function(m,idx){
     var need=C.need[m],have=g(S.have,m),sh=C.short[m];
     var pct=need?Math.min(100,Math.round(have/need*100)):0;
     var r=MATS[m].r;
+    var pn=C.pinBy[m]||[];
     var users=(C.by[m]||[]).slice(0,4).map(function(n){return '<span class="chip">'+esc(n)+'</span>'}).join('');
-    h+='<div class="row hot"><div><h3>'+(idx+1)+'. '+esc(m)+' <span class="pill warn">need '+sh+' more</span></h3>'+
+    h+='<div class="row hot"><div><h3>'+(idx+1)+'. '+esc(m)+' <span class="pill warn">need '+sh+' more</span>'+(pn.length?' <span class="pill pri">Prioritized</span>':'')+' <button class="btn small" data-a="hidemat" data-m="'+esc(m)+'" title="Stop showing this material in the list">Hide</button></h3>'+
       '<div class="meta">Have <span class="nums">'+have+'</span> of <span class="nums">'+need+'</span> needed'+(r?' · can be refined at '+esc(r.st)+' from '+Object.keys(r.i).map(function(k){return r.i[k]+' '+k}).join(' + '):'')+'</div>'+
       '<div class="bar low"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
       '<div><div class="meta">'+(MATS[m].s.length?'Break these down:':'Where to find:')+'</div><div class="chips">'+srcChips(m,6)+'</div>'+(MATS[m].f?'<div class="meta" style="margin-top:6px">'+esc(MATS[m].f)+'</div>':'')+'</div></div>';
   });
   h+='</div>';
   if(covered.length){h+='<h2>Covered</h2><div class="chips">'+covered.map(function(m){return '<span class="chip need">'+esc(m)+' '+g(S.have,m)+'/'+C.need[m]+'</span>'}).join('')+'</div>'}
+  if(hidden.length){h+='<h2>Hidden materials</h2><div class="chips">'+hidden.map(function(m){return '<span class="chip">'+esc(m)+' <button class="btn small" data-a="showmat" data-m="'+esc(m)+'">Show</button></span>'}).join('')+'</div>'}
   return h;
 }
+function watchHtml(){
+  var h='<h2>Challenge items</h2><p class="meta" style="margin:0 0 8px">Need something for a challenge or quest? Search any item and add it. It stays on this list until you remove it.</p>'+
+   '<div class="addbar"><input type="text" id="wname" list="catlist" placeholder="Search any item, e.g. Cooling Fan" value="'+esc(D.wname||'')+'" autocomplete="off"><input type="number" min="1" id="wqty" aria-label="How many" value="'+esc(D.wqty||1)+'"><button class="btn primary" data-a="addwatch">Add to loot list</button></div>'+
+   '<datalist id="catlist">'+Object.keys(catNames()).sort().map(function(k){return '<option value="'+esc(catNames()[k])+'">'}).join('')+'</datalist>';
+  var ws=S.watch.slice().sort(function(a,b){return (a.have>=a.need?1:0)-(b.have>=b.need?1:0)});
+  if(!ws.length)return h+'<div class="empty">No challenge items yet.</div>';
+  h+='<div class="list">';
+  ws.forEach(function(w){
+    var done=w.have>=w.need,pct=Math.min(100,Math.round(w.have/w.need*100)),info='';
+    if(MATS[w.name]&&MATS[w.name].s.length)info='<div class="meta">Break these down:</div><div class="chips">'+srcChips(w.name,6)+'</div>';
+    else if(MATS[w.name]&&MATS[w.name].f)info='<div class="meta">'+esc(MATS[w.name].f)+'</div>';
+    else if(IDX[w.name])info='<div class="meta">This item breaks down into:</div><div class="chips">'+IDX[w.name].map(function(p){return '<span class="chip src">'+p[1]+' '+esc(p[0])+'</span>'}).join('')+'</div>';
+    else info='<div class="meta">No break-down data stored for this item. Track the count yourself.</div>';
+    h+='<div class="row wrow'+(done?'':' hot')+'"><div><h3>'+esc(w.name)+' <span class="pill '+(done?'ok':'warn')+'">'+(done?'Done':'need '+(w.need-w.have)+' more')+'</span></h3><div class="bar'+(done?'':' low')+'"><i style="width:'+pct+'%"></i></div>'+info+'</div>'+
+      '<div class="ctl">Have'+step('w:'+w.id,w.have)+'</div><div class="ctl">Need'+step('n:'+w.id,w.need)+'</div>'+
+      '<div class="acts"><button class="btn small" data-a="rmwatch" data-id="'+w.id+'">Remove</button></div></div>';
+  });
+  return h+'</div>';
+}
 function viewItems(C){
-  var h='<div class="toolbar">Owned is what you hold now. Target is how many you want to keep. "Crafted" spends the materials and adds to Owned.</div><div class="list">';
-  ITEMS.forEach(function(it){
+  var h='<div class="toolbar">Owned is what you hold now. Target is how many you want to keep. "Crafted" spends the materials and adds to Owned.</div>'+
+    '<div class="addbar"><input type="search" id="itemq" placeholder="Filter crafted items" value="'+esc(D.itemq||'')+'" autocomplete="off"><button class="btn" data-a="toggleform">'+(D.showForm?'Close form':'Add your own craftable item')+'</button></div>';
+  if(D.showForm){
+    h+='<div class="formbox"><div class="addbar"><input type="text" id="cn" placeholder="Item name" value="'+esc(D.cn||'')+'"><input type="text" id="cs" placeholder="Workbench (optional)" value="'+esc(D.cs||'')+'"><input type="number" min="1" id="cy" aria-label="Made per craft" title="Made per craft" value="'+esc(D.cy||1)+'"></div>'+
+      '<input type="text" id="cr" placeholder="Ingredients, like: 2 Processor, 3 Wires, 1 ARC Alloy" value="'+esc(D.cr||'')+'" style="max-width:none;margin-bottom:8px">'+
+      (D.err?'<div class="meta" style="color:var(--bad);margin-bottom:6px">'+esc(D.err)+'</div>':'')+'<button class="btn primary" data-a="addcustom">Add item</button></div>';
+  }
+  h+='<div class="list">';
+  allItems().forEach(function(it){
+    if(D.itemq&&it.name.toLowerCase().indexOf(D.itemq.toLowerCase())<0)return;
     var f=C.info[it.id],recipe=Object.keys(it.r).map(function(k){return it.r[k]+' '+k}).join(', ');
     var miss=f.short.length&&isActive(it)&&f.n>0?'<div class="meta">Short: '+f.short.map(function(x){return x[0]+' ×'+x[1]}).join(', ')+'</div>':'';
     h+='<div class="row irow"><div><h3>'+esc(it.name)+' <span class="pill '+f.cls+'">'+esc(f.st)+'</span></h3>'+
@@ -250,13 +314,16 @@ function viewItems(C){
       '<label class="meta"><input type="checkbox" data-bp="'+it.id+'" '+(isActive(it)?'checked':'')+'> I have the blueprint</label></div>'+
       '<div class="ctl">Owned'+step('o:'+it.id,g(S.owned,it.id))+'</div>'+
       '<div class="ctl">Target'+step('t:'+it.id,g(S.target,it.id))+'</div>'+
-      '<div class="acts"><button class="btn small primary" data-craft="'+it.id+'" '+((isActive(it)&&f.can>=1)?'':'disabled')+'>Crafted ×1</button></div></div>';
+      '<div class="acts"><button class="btn small primary" data-craft="'+it.id+'" '+((isActive(it)&&f.can>=1)?'':'disabled')+'>Crafted ×1</button>'+
+      '<label class="chk pri"><input type="checkbox" data-pin="'+it.id+'" '+(S.pin[it.id]?'checked':'')+'> Prioritize</label>'+
+      '<label class="chk"><input type="checkbox" data-ign="'+it.id+'" '+(S.ign[it.id]?'checked':'')+'> Hide from loot list</label>'+(it.custom?'<button class="btn small" data-a="rmcustom" data-id="'+it.id+'">Delete item</button>':'')+'</div></div>';
   });
   return h+'</div>';
 }
 function viewMats(C){
-  var h='<div class="toolbar">Enter what is in your stash and bags. Highlighted counts are below what your current targets need.</div><div class="grid">';
+  var h='<div class="toolbar">Enter what is in your stash and bags.</div><div class="addbar"><input type="search" id="matq" placeholder="Filter materials" value="'+esc(D.matq||'')+'" autocomplete="off"></div><div class="grid">';
   MATNAMES.forEach(function(m){
+    if(D.matq&&m.toLowerCase().indexOf(D.matq.toLowerCase())<0)return;
     var need=C.need[m],low=C.short[m]>0;
     h+='<div class="mcell"><div class="nm"><strong>'+esc(m)+'</strong><span class="meta">'+(need?'Needed '+need+(low?' · short '+C.short[m]:''):'Not needed now')+'</span></div>'+step('m:'+m,g(S.have,m))+'</div>';
   });
@@ -286,35 +353,57 @@ function viewBreak(C){
 var TABS=[["loot","Loot Priorities"],["items","Crafted Items"],["mats","Materials"],["break","Break It Down"]];
 function render(){
   var C=compute();
-  var act=ITEMS.filter(isActive),ready=0,atT=0;
+  var act=allItems().filter(isActive),ready=0,atT=0;
   act.forEach(function(it){var f=C.info[it.id];if(f.n===0)atT++;else if(f.can>=1)ready++});
-  var openN=MATNAMES.filter(function(m){return C.short[m]>0}).length;
+  var openN=MATNAMES.filter(function(m){return C.short[m]>0&&!S.hideMat[m]}).length;
+  var openW=S.watch.filter(function(w){return w.have<w.need}).length;
   document.getElementById("stats").innerHTML=
     '<div class="stat"><b>'+openN+'</b><span>materials short</span></div>'+
     '<div class="stat"><b>'+ready+'</b><span>craftable now</span></div>'+
-    '<div class="stat"><b>'+atT+'/'+act.length+'</b><span>items at target</span></div>';
+    '<div class="stat"><b>'+atT+'/'+act.length+'</b><span>items at target</span></div>'+
+    (S.watch.length?'<div class="stat"><b>'+openW+'</b><span>challenge items left</span></div>':'');
   document.getElementById("tabs").innerHTML=TABS.map(function(t){return '<button role="tab" data-tab="'+t[0]+'" aria-selected="'+(S.tab===t[0])+'">'+t[1]+'</button>'}).join('');
   var body=S.tab==="items"?viewItems(C):S.tab==="mats"?viewMats(C):S.tab==="break"?viewBreak(C):viewLoot(C);
   if(S.example)body='<div class="banner"><p><b>These numbers are examples.</b> Replace them with your own stock, or clear everything to start from zero.</p><button class="btn primary" data-a="clear">Start from zero</button><button class="btn" data-a="dismiss">Keep examples</button></div>'+body;
   var key=document.activeElement&&document.activeElement.dataset?(document.activeElement.id||''):'';
   var main=document.getElementById("main");main.innerHTML=body;
-  if(key){var el=document.getElementById(key);if(el){el.focus();if(el.type==="search"){var l=el.value.length;try{el.setSelectionRange(l,l)}catch(e){}}}}
+  if(key){var el=document.getElementById(key);if(el){el.focus();if(el.type==="search"||el.type==="text"){var l=el.value.length;try{el.setSelectionRange(l,l)}catch(e){}}}}
 }
 /* ---------- EVENTS ---------- */
 function setKey(k,v){
   v=Math.max(0,Math.floor(+v||0));var p=k.split(":"),t=p[0],id=p.slice(1).join(":");
+  if(t==="w"||t==="n"){var w=S.watch.filter(function(x){return x.id===id})[0];if(w){if(t==="w")w.have=v;else w.need=Math.max(1,v)}return}
   if(t==="o")S.owned[id]=v;else if(t==="t")S.target[id]=v;else S.have[id]=v;
 }
-function getKey(k){var p=k.split(":"),t=p[0],id=p.slice(1).join(":");return t==="o"?g(S.owned,id):t==="t"?g(S.target,id):g(S.have,id)}
+function getKey(k){var p=k.split(":"),t=p[0],id=p.slice(1).join(":");
+  if(t==="w"||t==="n"){var w=S.watch.filter(function(x){return x.id===id})[0];return w?(t==="w"?w.have:w.need):0}
+  return t==="o"?g(S.owned,id):t==="t"?g(S.target,id):g(S.have,id)}
 document.addEventListener("click",function(e){
   var b=e.target.closest("button");if(!b)return;
   if(b.dataset.tab){S.tab=b.dataset.tab;save();render();window.scrollTo(0,0);return}
   var a=b.dataset.a;
   if(a==="inc"||a==="dec"){S.example=S.example;setKey(b.dataset.k,getKey(b.dataset.k)+(a==="inc"?1:-1));save();render();var el=document.querySelector('button[data-a="'+a+'"][data-k="'+b.dataset.k+'"]');if(el)el.focus();return}
-  if(a==="clear"){S={have:{},owned:{},target:{hammo:30,lammo:12,herb:5,seek:4,trig:4},bp:{hull:false,wolf:false},expand:true,tab:S.tab};save();render();return}
+  if(a==="clear"){S={have:{},owned:{},target:{hammo:30,lammo:12,herb:5,seek:4,trig:4},bp:{hull:false,wolf:false},pin:{},ign:{},watch:[],hideMat:{},custom:S.custom||[],expand:true,tab:S.tab};save();render();return}
   if(a==="dismiss"){S.example=false;save();render();return}
+  if(a==="hidemat"){S.hideMat[b.dataset.m]=true;save();render();return}
+  if(a==="showmat"){delete S.hideMat[b.dataset.m];save();render();return}
+  if(a==="rmwatch"){S.watch=S.watch.filter(function(w){return w.id!==b.dataset.id});save();render();return}
+  if(a==="addwatch"){
+    var raw=(D.wname||"").trim();if(!raw)return;
+    var nm=canon(raw),qty=Math.max(1,Math.floor(+D.wqty||1));
+    var ex=S.watch.filter(function(w){return w.name.toLowerCase()===nm.toLowerCase()})[0];
+    if(ex)ex.need+=qty;else S.watch.push({id:"w"+Date.now().toString(36),name:nm,need:qty,have:0});
+    D.wname="";D.wqty=1;save();render();return}
+  if(a==="toggleform"){D.showForm=!D.showForm;D.err="";render();return}
+  if(a==="rmcustom"){var cid=b.dataset.id;S.custom=S.custom.filter(function(c){return c.id!==cid});delete S.target[cid];delete S.owned[cid];delete S.pin[cid];delete S.ign[cid];ensureMats();save();render();return}
+  if(a==="addcustom"){
+    var cname=(D.cn||"").trim(),ing=parseIng(D.cr||"");
+    if(!cname||!Object.keys(ing).length){D.err="Enter an item name and at least one ingredient, like: 2 Processor, 3 Wires";render();return}
+    var nid="c"+Date.now().toString(36);
+    S.custom.push({id:nid,name:cname,st:(D.cs||"").trim()||"Your own item",y:Math.max(1,Math.floor(+D.cy||1)),bp:1,r:ing,n:"Added by you.",custom:1});
+    S.target[nid]=1;ensureMats();D.cn=D.cs=D.cr="";D.cy=1;D.err="";D.showForm=false;save();render();return}
   if(b.dataset.craft){
-    var it=ITEMBYID[b.dataset.craft];
+    var it=itemById(b.dataset.craft);if(!it)return;
     for(var m in it.r)S.have[m]=Math.max(0,g(S.have,m)-it.r[m]);
     S.owned[it.id]=g(S.owned,it.id)+it.y;S.example=false;save();render();
   }
@@ -323,10 +412,15 @@ document.addEventListener("change",function(e){
   var t=e.target;
   if(t.id==="expand"){S.expand=t.checked;save();render();return}
   if(t.dataset.bp){S.bp[t.dataset.bp]=t.checked;save();render();return}
+  if(t.dataset.pin){S.pin[t.dataset.pin]=t.checked;if(t.checked)S.ign[t.dataset.pin]=false;S.example=false;save();render();return}
+  if(t.dataset.ign){S.ign[t.dataset.ign]=t.checked;if(t.checked)S.pin[t.dataset.ign]=false;S.example=false;save();render();return}
   if(t.dataset.k&&t.type==="number"){setKey(t.dataset.k,t.value);save();render()}
 });
 document.addEventListener("input",function(e){
-  if(e.target.id==="q"){q=e.target.value;document.getElementById("lk").innerHTML=lookupHtml(compute())}
+  var id=e.target.id;
+  if(id==="q"){q=e.target.value;document.getElementById("lk").innerHTML=lookupHtml(compute());return}
+  if(id==="itemq"||id==="matq"){D[id]=e.target.value;render();return}
+  if(id==="wname"||id==="wqty"||id==="cn"||id==="cs"||id==="cy"||id==="cr"){D[id]=e.target.value}
 });
 buildIdx();load();render();initCloud();
 })();
