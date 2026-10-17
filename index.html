@@ -618,7 +618,57 @@ function viewFix(C){
   else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
   return h;
 }
-var TABS=[["loot","Loot Priorities"],["items","Crafted Items"],["mats","Materials"],["made","Made"],["fix","Repair / Upgrade"],["break","Break It Down"]];
+/* ---------- RECYCLE TAB ---------- */
+// Recycling takes the item out of your Owned (crafted items) or Have (materials) count and adds what it breaks down into to your materials.
+function applyRecycle(kind,key,n){
+  n=Math.max(0,Math.floor(+n||0));if(!n)return;
+  var name,ch=[],warn=[],parts=[];
+  if(kind==="i"){var it=itemById(key);if(!it)return;name=it.name}else name=key;
+  var outs=IDX[name];if(!outs)return;
+  if(kind==="i"||kind==="m"){
+    var map=kind==="i"?S.owned:S.have,old=g(map,key),nv=Math.max(0,old-n);
+    if(old-n<0)warn.push(name);
+    if(nv!==old){ch.push([kind==="i"?"o":"h",key,nv-old]);map[key]=nv;parts.push(name+" −"+(old-nv))}
+  }
+  outs.forEach(function(o){
+    var m=o[0],add=o[1]*n;
+    if(!MATS[m]){MATS[m]=makeMat(m);MATNAMES=Object.keys(MATS)}
+    S.have[m]=g(S.have,m)+add;ch.push(["h",m,add]);parts.push(m+" +"+add);
+  });
+  var txt="Recycled "+n+" × "+name+": "+parts.join(" · ");
+  S.log.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
+  S.log=S.log.slice(0,30);S.example=false;
+  D.madeMsg=txt+(warn.length?". You only had "+(kind==="i"?g(S.owned,key):g(S.have,key))+" tracked, so it was set to 0.":"");
+  save();
+}
+function recycleRow(kind,key,name,have,C){
+  var outs=IDX[name]||[];
+  var chips=outs.slice().sort(function(a,b){return b[1]-a[1]}).map(function(p){var need=C.short[p[0]]>0;return '<span class="chip'+(need?' need':'')+'">'+p[1]+' '+esc(p[0])+(need?' · needed':'')+'</span>'}).join('');
+  var k=kind+":"+key;
+  return '<div class="row"><div><h3>'+esc(name)+'</h3><div class="meta">'+(have===null?'Not tracked, so only the materials are added':'Have <span class="nums">'+have+'</span>')+' · breaks down into</div><div class="chips">'+chips+'</div></div>'+
+    '<div class="addbar" style="margin:0"><input type="number" min="1" inputmode="numeric" id="rc-'+esc(k)+'" data-rc="'+esc(k)+'" placeholder="How many" aria-label="How many '+esc(name)+' you recycled" value="'+esc((D.rc&&D.rc[k])||'')+'"><button class="btn small primary" data-a="rcgo" data-k="'+esc(k)+'">Recycle</button></div></div>';
+}
+function viewRecycle(C){
+  var term=(D.rcq||"").toLowerCase();
+  var h='<div class="toolbar">Type how many you recycled and press Enter. Crafted items and materials come out of your counts, and what they break down into is added to Materials. Items that are not tracked anywhere, like Cooling Fan, only add materials. Search to find them. Made a mistake? Undo it at the bottom.</div>';
+  if(D.madeMsg)h+='<div class="banner" style="border-color:var(--ok);background:var(--ok-bg)"><p>'+esc(D.madeMsg)+'</p></div>';
+  h+='<div class="addbar"><input type="search" id="rcq" placeholder="Search items to recycle" value="'+esc(D.rcq||'')+'" autocomplete="off"></div>';
+  var tracked={},any=false;
+  var items=allItems().filter(function(it){tracked[it.name.toLowerCase()]=1;return IDX[it.name]&&(!term||it.name.toLowerCase().indexOf(term)>-1)}).sort(function(a,b){return a.name.localeCompare(b.name)});
+  var mats=MATNAMES.filter(function(m){tracked[m.toLowerCase()]=1;return IDX[m]&&(!term||m.toLowerCase().indexOf(term)>-1)}).sort();
+  if(items.length){any=true;h+='<h2>Your crafted items</h2><div class="list">'+items.map(function(it){return recycleRow("i",it.id,it.name,g(S.owned,it.id),C)}).join('')+'</div>'}
+  if(mats.length){any=true;h+='<h2>Your materials</h2><div class="list">'+mats.map(function(m){return recycleRow("m",m,m,g(S.have,m),C)}).join('')+'</div>'}
+  if(term){
+    var other=Object.keys(IDX).filter(function(k){return !tracked[k.toLowerCase()]&&k.toLowerCase().indexOf(term)>-1}).sort().slice(0,40);
+    if(other.length){any=true;h+='<h2>Other loot</h2><div class="list">'+other.map(function(k){return recycleRow("x",k,k,null,C)}).join('')+'</div>'}
+  }else h+='<div class="meta" style="margin-top:12px">Type a name above to find other loot you can recycle, like Cooling Fan.</div>';
+  if(!any&&term)h+='<div class="empty">Nothing matches.</div>';
+  h+='<h2>Recent entries</h2>';
+  if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
+  else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
+  return h;
+}
+var TABS=[["loot","Loot Priorities"],["items","Crafted Items"],["mats","Materials"],["made","Made"],["fix","Repair / Upgrade"],["recycle","Recycle"],["break","Break It Down"]];
 function render(){
   var C=compute();
   var act=allItems().filter(isActive),ready=0,atT=0;
@@ -631,7 +681,7 @@ function render(){
     '<div class="stat"><b>'+atT+'/'+act.length+'</b><span>items at target</span></div>'+
     (S.watch.length?'<div class="stat"><b>'+openW+'</b><span>challenge items left</span></div>':'');
   document.getElementById("tabs").innerHTML=TABS.map(function(t){return '<button role="tab" data-tab="'+t[0]+'" aria-selected="'+(S.tab===t[0])+'">'+t[1]+'</button>'}).join('');
-  var body=S.tab==="items"?viewItems(C):S.tab==="mats"?viewMats(C):S.tab==="made"?viewMade(C):S.tab==="fix"?viewFix(C):S.tab==="break"?viewBreak(C):viewLoot(C);
+  var body=S.tab==="items"?viewItems(C):S.tab==="mats"?viewMats(C):S.tab==="made"?viewMade(C):S.tab==="fix"?viewFix(C):S.tab==="recycle"?viewRecycle(C):S.tab==="break"?viewBreak(C):viewLoot(C);
   if(S.example)body='<div class="banner"><p><b>These numbers are examples.</b> Replace them with your own stock, or clear everything to start from zero.</p><button class="btn primary" data-a="clear">Start from zero</button><button class="btn" data-a="dismiss">Keep examples</button></div>'+body;
   var key=document.activeElement&&document.activeElement.dataset?(document.activeElement.id||''):'';
   var main=document.getElementById("main");main.innerHTML=body;
@@ -665,6 +715,7 @@ document.addEventListener("click",function(e){
     var ex2=D.editId?slotById(D.editId):null;
     if(ex2){ex2.name=sname;ex2.r=sring}else S.slots.push({id:"s"+Date.now().toString(36),kind:D.showSlot,name:sname,r:sring});
     ensureMats();D.sn="";D.ring=[{n:"",q:1}];D.rerr="";D.showSlot=null;D.editId=null;save();render();return}
+  if(a==="rcgo"){var rc=b.dataset.k,rv=(D.rc||{})[rc];if(!(+rv>0))return;var rp=rc.split(":");applyRecycle(rp[0],rp.slice(1).join(":"),rv);D.rc[rc]="";render();var rce=document.getElementById("rc-"+rc);if(rce)rce.focus();return}
   if(a==="mkundo"){undoMade(b.dataset.id);render();return}
   if(a==="clear"){S={have:{},owned:{},target:{hammo:30,lammo:12,herb:5,seek:4,trig:4},bp:{hull:false,wolf:false},pin:{},ign:{},watch:[],hideMat:{},custom:S.custom||[],removed:S.removed||{},expand:true,tab:S.tab,log:[],slots:S.slots||[]};save();render();return}
   if(a==="dismiss"){S.example=false;save();render();return}
@@ -723,15 +774,17 @@ document.addEventListener("input",function(e){
   var id=e.target.id;
   if(e.target.dataset.sk){D.sk=D.sk||{};D.sk[e.target.dataset.sk]=e.target.value;return}
   if(id==="sn"){D.sn=e.target.value;return}
+  if(e.target.dataset.rc){D.rc=D.rc||{};D.rc[e.target.dataset.rc]=e.target.value;return}
   if(e.target.dataset.mk){D.mk=D.mk||{};D.mk[e.target.dataset.mk]=e.target.value;return}
   if(id==="q"){q=e.target.value;document.getElementById("lk").innerHTML=lookupHtml(compute());return}
-  if(id==="itemq"||id==="matq"||id==="madeq"){D[id]=e.target.value;render();return}
+  if(id==="itemq"||id==="matq"||id==="madeq"||id==="rcq"){D[id]=e.target.value;render();return}
   if(e.target.dataset.k&&e.target.type==="number"&&e.target.id.indexOf("in-")===0){setKey(e.target.dataset.k,e.target.value);save();return}
   if(id==="wname"||id==="wqty"||id==="cn"||id==="cs"||id==="cy"||id==="cr"){D[id]=e.target.value}
 });
 document.addEventListener("keydown",function(e){
   var t=e.target;
   if(e.key==="Enter"&&t.dataset&&t.dataset.sk){e.preventDefault();if(!(+t.value>0))return;applySlot(t.dataset.sk,t.value);D.sk=D.sk||{};D.sk[t.dataset.sk]="";render();return}
+  if(e.key==="Enter"&&t.dataset&&t.dataset.rc){e.preventDefault();if(!(+t.value>0))return;var rp2=t.dataset.rc.split(":");applyRecycle(rp2[0],rp2.slice(1).join(":"),t.value);D.rc=D.rc||{};D.rc[t.dataset.rc]="";render();return}
   if(e.key!=="Enter"||!t.dataset||!t.dataset.mk)return;
   e.preventDefault();D.mk=D.mk||{};D.mk[t.dataset.mk]=t.value;
   var mk=t.dataset.mk;if(!(+t.value>0))return;var mp=mk.split(":");
