@@ -328,7 +328,7 @@ function compute(){
     var st,cls;
     if(!act2){st="Blueprint missing";cls="bad"}
     else if(S.ign[it.id]){st="Hidden from loot list";cls="idle"}
-    else if(n===0){st="At target";cls="ok"}
+    else if(n===0){var nx=directShort(it,1);if(nx.length){st="At target · low on materials";cls="warn"}else{st="At target";cls="ok"}}
     else if(can>=1){st="Craft "+Math.min(can,n)+" now";cls="warn"}
     else{st="Missing materials";cls="idle"}
     info[it.id]={n:n,can:can,st:st,cls:cls,short:directShort(it,Math.max(1,n))};
@@ -424,7 +424,7 @@ function viewItems(C){
     var cat=itemCat(it);
     if(cat!==lastCat){if(openList)h+='</div>';h+='<h2>'+esc(cat)+'</h2><div class="list">';lastCat=cat;openList=true}
     var f=C.info[it.id],recipe=Object.keys(it.r).map(function(k){return it.r[k]+' '+k}).join(', ');
-    var miss=f.short.length&&isActive(it)&&f.n>0?'<div class="meta">Short: '+f.short.map(function(x){return x[0]+' ×'+x[1]}).join(', ')+'</div>':'';
+    var miss=f.short.length&&isActive(it)&&!S.ign[it.id]?'<div class="meta" style="'+(f.n>0?'':'color:var(--warn)')+'">'+(f.n>0?'Short: ':'Short for the next craft: ')+f.short.map(function(x){return x[0]+' ×'+x[1]}).join(', ')+'</div>':'';
     h+='<div class="row irow"><div><h3>'+esc(it.name)+' <span class="pill '+f.cls+'">'+esc(f.st)+'</span></h3>'+
       '<div class="meta">'+esc(it.st)+' · '+esc(recipe)+(it.y>1?' → '+it.y+' per craft':'')+'</div>'+miss+(it.n?'<div class="meta">'+esc(it.n)+'</div>':'')+
       '<label class="meta"><input type="checkbox" data-bp="'+it.id+'" '+(isActive(it)?'checked':'')+'> I have the blueprint</label></div>'+
@@ -589,6 +589,7 @@ document.addEventListener("input",function(e){
   var id=e.target.id;
   if(id==="q"){q=e.target.value;document.getElementById("lk").innerHTML=lookupHtml(compute());return}
   if(id==="itemq"||id==="matq"){D[id]=e.target.value;render();return}
+  if(e.target.dataset.k&&e.target.type==="number"&&e.target.id.indexOf("in-")===0){setKey(e.target.dataset.k,e.target.value);save();return}
   if(id==="wname"||id==="wqty"||id==="cn"||id==="cs"||id==="cy"||id==="cr"){D[id]=e.target.value}
 });
 mergeData();buildIdx();load();render();initCloud();
