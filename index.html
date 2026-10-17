@@ -742,6 +742,7 @@ function lgApply(keys){
   D.madeMsg=txt+(warn.length?". You had fewer "+warn.join(", ")+" than that, so "+(warn.length>1?"they were":"it was")+" set to 0.":"");
   save();return true;
 }
+var STAPLES=["Plastic Parts","Metal Parts","Chemicals","Fabric","Rubber Parts"];
 function lgRow(kind,key,name,have){
   var k=kind+":"+key;
   return '<div class="row"><div><h3>'+esc(name)+'</h3><div class="meta">Have <span class="nums">'+have+'</span></div></div>'+
@@ -754,10 +755,12 @@ function viewLG(C){
   h+='<div class="addbar"><input type="search" id="lgq" placeholder="Search items and materials" value="'+esc(D.lgq||'')+'" autocomplete="off"><button class="btn primary" data-a="lgall">Apply all</button><button class="btn" data-a="lgclear">Clear entries</button></div>';
   var used=usedMats();
   var items=allItems().filter(function(it){return !term||it.name.toLowerCase().indexOf(term)>-1}).sort(function(a,b){return a.name.localeCompare(b.name)});
-  var mats=MATNAMES.filter(function(m){return term?m.toLowerCase().indexOf(term)>-1:used[m]}).sort();
+  var staples=STAPLES.filter(function(m){if(!MATS[m]){MATS[m]=makeMat(m);MATNAMES=Object.keys(MATS)}return !term||m.toLowerCase().indexOf(term)>-1});
+  var mats=MATNAMES.filter(function(m){return STAPLES.indexOf(m)<0&&(term?m.toLowerCase().indexOf(term)>-1:used[m])}).sort();
+  if(staples.length)h+='<h2>Every-game materials</h2><div class="list">'+staples.map(function(m){return lgRow("m",m,m,g(S.have,m))}).join('')+'</div>';
   if(items.length)h+='<h2>Crafted items</h2><div class="list">'+items.map(function(it){return lgRow("i",it.id,it.name,g(S.owned,it.id))}).join('')+'</div>';
   if(mats.length)h+='<h2>Materials</h2><div class="list">'+mats.map(function(m){return lgRow("m",m,m,g(S.have,m))}).join('')+'</div>';
-  if(!items.length&&!mats.length)h+='<div class="empty">Nothing matches.</div>';
+  if(!items.length&&!mats.length&&!staples.length)h+='<div class="empty">Nothing matches.</div>';
   if(!term)h+='<div class="meta" style="margin-top:12px">Like the Materials tab, this shows only materials used by your crafted items and challenge items. Search for a name to find any other material.</div>';
   h+='<h2>Recent entries</h2>';
   if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
