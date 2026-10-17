@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0}</style></head><body>
+<title>Raider Stockroom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky summary header, four tabs (loot priorities, crafted items, materials, break-down lookup). Steel-teal ground, amber reserved for "go get this". */
+:root{
+  --bg:#eef0ec; --surface:#fbfcfa; --ink:#1b2321; --muted:#5b6965; --line:#d3d9d3;
+  --accent:#0e6a64; --accent-ink:#ffffff; --warn:#b4540a; --warn-bg:#fbe9d6; --ok:#2c7a3a; --ok-bg:#dcefdc; --bad:#b0382b; --bad-bg:#f6dcd8; --track:#dfe4de;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101518; --surface:#182024; --ink:#e5ebe8; --muted:#92a19b; --line:#2a363b;
+  --accent:#4cc3b8; --accent-ink:#0b1412; --warn:#f2a642; --warn-bg:#3a2a12; --ok:#74c982; --ok-bg:#1c3322; --bad:#f27d6d; --bad-bg:#3b1d19; --track:#26323a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101518; --surface:#182024; --ink:#e5ebe8; --muted:#92a19b; --line:#2a363b;
+  --accent:#4cc3b8; --accent-ink:#0b1412; --warn:#f2a642; --warn-bg:#3a2a12; --ok:#74c982; --ok-bg:#1c3322; --bad:#f27d6d; --bad-bg:#3b1d19; --track:#26323a; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
+*{box-sizing:border-box}
+.wrap{max-width:1040px;margin:0 auto}
+header{padding:18px 0 10px}
+h1{font:700 34px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0}
+.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.stat{background:var(--surface);border:1px solid var(--line);padding:8px 12px;min-width:120px}
+.stat b{display:block;font:500 22px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+nav{display:flex;gap:2px;border-bottom:2px solid var(--line);margin:12px 0 16px;overflow-x:auto;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
+nav button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--muted);font:600 15px var(--body);padding:10px 14px;cursor:pointer;white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.banner{background:var(--warn-bg);border:1px solid var(--warn);padding:10px 12px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner p{margin:0;flex:1;min-width:220px}
+.btn{font:600 13px var(--body);padding:7px 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:3px 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+h2{font:700 22px/1.1 var(--display);letter-spacing:.03em;text-transform:uppercase;margin:22px 0 10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:12px;color:var(--muted);font-size:13px}
+.toolbar label{display:flex;gap:6px;align-items:center}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--surface);border:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:10px 16px;align-items:center}
+.row.hot{border-left:4px solid var(--warn)}
+.row h3{margin:0;font:600 16px var(--body)}
+.meta{font-size:12.5px;color:var(--muted)}
+.bar{height:8px;background:var(--track);margin-top:6px;position:relative}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar.low i{background:var(--warn)}
+.nums{font:500 13px var(--mono);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{font-size:12px;background:var(--track);padding:2px 7px;color:var(--ink);white-space:nowrap}
+.chip.src{font-family:var(--mono);font-size:11.5px}
+.chip.need{background:var(--ok-bg);color:var(--ok);font-weight:600}
+.pill{font:600 11px var(--body);text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;display:inline-block}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.idle{background:var(--track);color:var(--muted)}
+.step{display:inline-flex;align-items:stretch;border:1px solid var(--line)}
+.step button{width:30px;background:var(--surface);color:var(--ink);border:0;font:600 16px var(--mono);cursor:pointer}
+.step input{width:54px;text-align:center;border:0;border-inline:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 14px var(--mono);padding:5px 2px;-moz-appearance:textfield}
+.step input::-webkit-inner-spin-button{display:none}
+.irow{grid-template-columns:minmax(0,1.2fr) auto auto minmax(0,1fr)}
+.irow .ctl{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.acts{display:flex;flex-direction:column;gap:5px;align-items:flex-start;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.mcell{background:var(--surface);border:1px solid var(--line);padding:9px 11px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.mcell .nm{min-width:0}
+.mcell strong{font-weight:500;display:block}
+input[type=search],select{font:400 14px var(--body);padding:8px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:100%;max-width:420px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);margin-top:18px;max-width:80ch}
+.empty{color:var(--muted);padding:14px;border:1px dashed var(--line)}
+@media (max-width:640px){
+  .row,.irow{grid-template-columns:1fr}
+  h1{font-size:30px}
+}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Raider Stockroom</h1>
+  <p class="sub">Set how many of each crafted item you want. Enter what you hold. The loot list reorders itself to show what to go after next.</p>
+  <div class="stats" id="stats"></div>
+</header>
+<nav role="tablist" id="tabs"></nav>
+<main id="main"></main>
+<p class="note">Recipes and break-down yields come from the community item databases (arcraiders.wiki and metaforge.app) as of mid-October 2026. A few entries disagree between sources, or change with patches, so check anything marked "verify" at the in-game workshop. Yields from loot can vary with rarity.</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- DATA ---------- */
+// Break-down sources: [item, qty recycled]. "r" = refiner recipe (1 craft makes 1).
+var MATS={
+ "Plastic Parts":{s:[["ARC Synthetic Resin",14],["Cooling Fan",14],["Recorder",10],["Ruined Riot Shield",10],["Shaker",10],["Dried-Out ARC Resin",9],["Camera Lens",8],["Alarm Clock",6],["Toaster",5],["Fried Motherboard",5],["Crumpled Plastic Bottle",4],["Light Shield",4]]},
+ "Rubber Parts":{s:[["Ruined Accordion",18],["Rubber Pad",18],["ARC Flex Rubber",16],["Diving Goggles",12],["Degraded ARC Rubber",11],["Deflated Football",9],["Expired Respirator",8],["Headphones",7],["Thermostat",7],["Ruined Riot Shield",6],["Shield Recharger",4]]},
+ "Metal Parts":{s:[["Garlic Press",12],["ARC Performance Steel",12],["Kettle III",12],["Bicycle Pump",10],["Candle Holder",8],["Rusted Tools",8],["Rusted Bolts",8],["Broken Flashlight",6],["Water Pump",4],["Acoustic Guitar",4],["Unusable Weapon",4]]},
+ "Chemicals":{s:[["Laboratory Reagents",16],["ARC Coolant",16],["Impure ARC Coolant",12],["Household Cleaner",11],["Antiseptic",10],["Epoxy Bucket",8],["Industrial Battery",7],["Pulse Mine",6],["Cooling Coil",6],["Coolant",5],["Vita Shot",4],["Crude Explosives",3]]},
+ "Wires":{s:[["Acoustic Guitar",6],["Portable TV",6],["Cooling Fan",4],["Power Cable",4],["Toaster",3],["Broken Handheld Radio",2],["Broken Taser",2],["Power Bank",2],["Projector",2],["Humidifier",2],["Damaged Heat Sink",2],["Silencer III",3]]},
+ "Processor":{s:[["Broken Guidance System",4],["Exodus Modules",2],["Rotary Encoder",2],["Spectrum Analyzer",2],["Alarm Clock",1],["Projector",1],["Telemetry Transceiver",1],["Looting Mk. 3 (any)",1]],f:"Also sold by Celeste (10 Assorted Seeds, 5 a day). Found in Server Racks, Recording Panels, Computers."},
+ "ARC Alloy":{s:[["Glitched ARC Circuitry",6],["Bastion Cell",3],["Bombardier Cell",3],["Leaper Pulse Unit",3],["Damaged Leaper Pulse Unit",3],["Glitched ARC Light Ring",3],["ARC Circuitry",2],["ARC Motion Core",2],["Burned ARC Circuitry",2],["Comet Igniter",2],["Sentinel Firing Core",2],["Shredder Gyro",2],["Medium Shield (salvage)",2]]},
+ "ARC Motion Core":{r:{st:"Refiner 2",i:{"ARC Alloy":8}},s:[["Wolfpack",1],["Turbine Compressor",1]],f:"Drops from ARC enemies."},
+ "Mechanical Components":{r:{st:"Refiner 1",i:{"Metal Parts":7,"Rubber Parts":3}},s:[["Il Toro IV",5],["Arpeggio IV",5],["Stiletto IV",4],["Rusted Gear",2],["Motor",2],["Laser Level",2],["Sentinel Firing Core",2],["Shredder Gyro",2],["Advanced Mechanical Components",1],["Mod Components",1],["Hand Drill",1],["Extended Barrel II",1]],f:"Scavenged from Bastion, Bombardier, Leaper and Shredder ARC."},
+ "Advanced Mechanical Components":{r:{st:"Refiner 2",i:{"Steel Spring":2,"Mechanical Components":2}},s:[["Bobcat IV",5],["Tempest IV",5],["Vulcano IV",4],["Hullcracker IV",4],["Bettina IV",3],["Osprey IV",3],["Rascal IV",3],["Anvil II",2],["Bastion Cell",1],["Bombardier Cell",1],["Magnetic Accelerator",1],["Microscope",1]],f:"Drops from ARC Matriarch and Queen."},
+ "Hand Drill":{s:[],f:"Scavenged in Mechanical and Industrial containers. Cannot be made by recycling."},
+ "Simple Gun Parts":{s:[["Unusable Weapon",5],["Arpeggio IV",5],["Il Toro IV",5],["Burletta IV",4],["Stiletto IV",4],["Complex Gun Parts",3],["Heavy Gun Parts",2],["Light Gun Parts",2],["Medium Gun Parts",2]],f:"Scavenged from Wasps, Hornets, Turrets, Sentinels, Shredders. Celeste sells them."},
+ "Heavy Gun Parts":{r:{st:"Refiner 2 + Heavy Gun Parts blueprint",i:{"Simple Gun Parts":4}},s:[["Hullcracker IV",5],["Vulcano IV",5],["Anvil III",3],["Rascal IV",3],["Bettina IV",3],["Hullcracker I",2],["Anvil II",2]]},
+ "Magnetic Accelerator":{r:{st:"Refiner 3",i:{"Advanced Mechanical Components":2,"ARC Motion Core":2}},s:[["Aphelion",2],["Dolabra",2],["Equalizer",2],["Jupiter",2],["Matriarch Reactor",1],["Queen Reactor",1],["Magnetron",1]],f:"Drops from ARC Matriarch and Queen."},
+ "Exodus Modules":{s:[["Geiger Counter",1],["Glitched ARC Circuitry",1],["Ion Sputter",1],["Spectrum Analyzer",1]],f:"Exodus loot category."},
+ "Electrical Components":{s:[["Fried Motherboard",2],["Rotary Encoder",2],["Sample Cleaner",2],["Hornet Driver",1],["Looting Mk. 2",1],["Glitched ARC Transmitter",1]]},
+ "Advanced Electrical Components":{r:{st:"Refiner 2",i:{"Wires":3,"Electrical Components":2}},s:[["Snap Hook (salvage)",2],["Combat / Looting / Tactical Mk. 3",1],["Photoelectric Cloak",1],["Power Rod",1],["Powered Descender",1],["Spectrometer",1],["Telemetry Transceiver",1],["Vaporizer Regulator",1]],f:"Drops from ARC Matriarch and Queen."},
+ "Crude Explosives":{r:{st:"Refiner 1",i:{"Chemicals":6}},s:[["Laboratory Reagents",3],["Comet Igniter",2],["Firefly Burner",2],["Trailblazer",2],["Explosive Compound",2],["Pop Trigger",1],["Shrapnel Grenade",1],["Seeker Grenade",1]]},
+ "Explosive Compound":{r:{st:"Refiner 2",i:{"Crude Explosives":2,"Oil":2}},s:[["Fossilized Lightning",3],["Wolfpack",1],["Deadline",1],["Fireworks Box",1]],f:"Scavenged from the ARC Comet; Power Out quest."},
+ "Oil":{s:[],f:"Scavenge it. No break-down source found in the database."},
+ "Durable Cloth":{s:[["Spring Cushion",2],["Ripped Safety Vest",1]]},
+ "Great Mullein":{s:[],f:"Harvest in Nature areas, search Backpacks and Wicker Baskets, or buy from Celeste (5 Assorted Seeds, 10 a day)."},
+ "Rope":{s:[["Snap Hook",3],["Grappling Hook",1],["Tether Launcher",1],["Yank Grenade",1]],f:"Celeste sells it (10 Coins, 5 a day)."},
+ "Cable Stripper":{s:[["Grappling Hook",1]],f:"Scavenged."},
+ "Speaker Component":{s:[["Radio Relay",2],["Differential Microphone",1],["Frequency Modulation Box",1],["Headphones",1],["Radio",1],["Photoelectric Cloak",1]]},
+ "ARC Powercell":{s:[["Advanced ARC Powercell",2]],f:"Loot from ARC enemies."},
+ "Rocketeer Driver":{s:[],f:"Drops from Rocketeer ARC. Do not recycle spare ones if you plan to craft Wolfpack."},
+ "Steel Spring":{s:[["Ruined Accordion",3],["Cooling Coil",2],["Spring Cushion",2],["Laser Level",2],["Advanced Mechanical Components",1],["Mod Components",1]]}
+};
+var ITEMS=[
+ {id:"anvil",name:"Anvil",st:"Gunsmith 2",y:1,bp:1,r:{"Advanced Mechanical Components":2,"Heavy Gun Parts":3,"Hand Drill":3},n:"Verify: one guide lists a different recipe."},
+ {id:"loot3",name:"Looting Mk. 3 (Cautious)",st:"Gear Bench 3",y:1,bp:1,r:{"Advanced Electrical Components":2,"Processor":3}},
+ {id:"lshield",name:"Light Shield",st:"Gear Bench 1 or Workbench",y:1,bp:1,r:{"ARC Alloy":2,"Plastic Parts":4}},
+ {id:"ebii",name:"Extended Barrel II",st:"Gunsmith 2",y:1,bp:1,r:{"Mechanical Components":3,"Wires":6}},
+ {id:"hull",name:"Hullcracker",st:"Gunsmith 3",y:1,bp:0,r:{"Magnetic Accelerator":1,"Heavy Gun Parts":3,"Exodus Modules":1}},
+ {id:"hammo",name:"Heavy Ammo",st:"Workbench",y:10,bp:1,r:{"Metal Parts":3,"Chemicals":2},n:"Makes 10 per craft. Verify: only one source lists this."},
+ {id:"trig",name:"Trigger 'Nade",st:"Explosives Station 2",y:1,bp:1,r:{"Crude Explosives":2,"Processor":1}},
+ {id:"herb",name:"Herbal Bandage",st:"Medical Lab 1",y:1,bp:1,r:{"Durable Cloth":1,"Great Mullein":1}},
+ {id:"seek",name:"Seeker Grenade",st:"Explosives Station 1",y:1,bp:1,r:{"Crude Explosives":1,"ARC Alloy":2}},
+ {id:"lammo",name:"Launcher Ammo",st:"Workbench 1",y:6,bp:1,r:{"ARC Motion Core":1,"Crude Explosives":2},n:"Makes 6 per craft."},
+ {id:"grap",name:"Grappling Hook",st:"Utility Station 1",y:1,bp:1,r:{"Mechanical Components":1,"Rope":2,"Cable Stripper":1}},
+ {id:"cloak",name:"Photoelectric Cloak",st:"Utility Station 3",y:1,bp:1,r:{"Advanced Electrical Components":2,"Speaker Component":4}},
+ {id:"recharge",name:"Shield Recharger",st:"Workbench (Medical Lab unlocked)",y:1,bp:1,r:{"Rubber Parts":5,"ARC Powercell":1}},
+ {id:"wolf",name:"Wolfpack",st:"Explosives Station 3",y:1,bp:0,r:{"Explosive Compound":1,"ARC Motion Core":2,"Rocketeer Driver":1}}
+];
+var ITEMBYID={};ITEMS.forEach(function(i){ITEMBYID[i.id]=i});
+var MATNAMES=Object.keys(MATS);
+// Example numbers shown on first open. "Reset" clears them.
+function example(){
+  var have={"Plastic Parts":6,"ARC Alloy":5,"Metal Parts":18,"Chemicals":9,"Wires":4,"Processor":2,"Mechanical Components":2,"Rubber Parts":7,"Crude Explosives":1,"Rope":1,"Steel Spring":3,"Simple Gun Parts":6,"Hand Drill":1,"Great Mullein":1,"Durable Cloth":1,"ARC Powercell":1};
+  return {have:have,owned:{hammo:8,lammo:0,lshield:1,herb:1,recharge:0,seek:1,trig:0,grap:0,cloak:0,loot3:0,anvil:0,ebii:0},
+    target:{hammo:30,lammo:12,lshield:2,herb:5,recharge:3,seek:4,trig:4,grap:1,cloak:1,loot3:1,anvil:1,ebii:1,hull:1,wolf:2},
+    bp:{hull:false,wolf:false},expand:true,example:true,tab:"loot"};
+}
+var S=null;
+/* ---------- STATE / SAVE ---------- */
+var LS="raider-stockroom-v1",dbDoc=null,saveT=null;
+function clean(o){return JSON.parse(JSON.stringify(o))}
+function load(){
+  try{var t=localStorage.getItem(LS);if(t){S=JSON.parse(t)}}catch(e){}
+  if(!S)S=example();
+}
+function save(){
+  clearTimeout(saveT);
+  saveT=setTimeout(function(){
+    var j=clean(S);
+    try{localStorage.setItem(LS,JSON.stringify(j))}catch(e){}
+    if(dbDoc){dbDoc.set({json:JSON.stringify(j)}).catch(function(){})}
+  },400);
+}
+function initCloud(){
+  if(!window.claude||!claude.use)return;
+  Promise.all([claude.use("db"),claude.use("user")]).then(function(r){
+    var db=r[0],user=r[1];if(!db||!user||!user.id)return;
+    return user.id().then(function(id){
+      if(!id)return;
+      dbDoc=db.collection("data/users/"+id).doc("stockroom");
+      return dbDoc.get().then(function(snap){
+        if(snap.exists&&snap.data()&&snap.data().json){
+          try{S=JSON.parse(snap.data().json);render()}catch(e){}
+        }else{save()}
+      });
+    });
+  }).catch(function(){});
+}
+/* ---------- LOGIC ---------- */
+function isActive(it){var b=S.bp[it.id];if(b===undefined)b=!!it.bp;return !!b}
+function g(map,k){return +(map&&map[k])||0}
+function craftsNeeded(it){var d=Math.max(0,g(S.target,it.id)-g(S.owned,it.id));return Math.ceil(d/it.y)}
+function directShort(it,crafts){var out=[];for(var m in it.r){var need=it.r[m]*crafts,h=g(S.have,m);if(h<need)out.push([m,need-h])}return out}
+function compute(){
+  var rem={};MATNAMES.forEach(function(m){rem[m]=g(S.have,m)});
+  var need={},short={};
+  MATNAMES.forEach(function(m){need[m]=0;short[m]=0});
+  var by={};
+  function req(m,q){
+    need[m]+=q;var u=Math.min(rem[m],q);rem[m]-=u;var net=q-u;
+    if(net>0){var r=MATS[m].r;
+      if(S.expand&&r){for(var c in r)req(c,net*r[c])}else short[m]+=net}
+  }
+  var act=ITEMS.filter(function(it){return isActive(it)&&craftsNeeded(it)>0});
+  act.forEach(function(it){it._gap=directShort(it,craftsNeeded(it)).reduce(function(a,b){return a+b[1]},0)});
+  act.sort(function(a,b){return a._gap-b._gap});
+  act.forEach(function(it){var n=craftsNeeded(it);for(var m in it.r)req(m,it.r[m]*n);for(var m2 in it.r){(by[m2]=by[m2]||[]).push(it.name)}});
+  var info={};
+  ITEMS.forEach(function(it){
+    var n=craftsNeeded(it),act2=isActive(it),can=Infinity;
+    for(var m in it.r)can=Math.min(can,Math.floor(g(S.have,m)/it.r[m]));
+    var st,cls;
+    if(!act2){st="Blueprint missing";cls="bad"}
+    else if(n===0){st="At target";cls="ok"}
+    else if(can>=1){st="Craft "+Math.min(can,n)+" now";cls="warn"}
+    else{st="Missing materials";cls="idle"}
+    info[it.id]={n:n,can:can,st:st,cls:cls,short:directShort(it,Math.max(1,n))};
+  });
+  return {need:need,short:short,by:by,info:info};
+}
+/* ---------- RENDER ---------- */
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function step(key,val){return '<span class="step"><button type="button" data-a="dec" data-k="'+key+'" aria-label="decrease">−</button><input type="number" min="0" inputmode="numeric" id="in-'+key+'" data-k="'+key+'" value="'+val+'"><button type="button" data-a="inc" data-k="'+key+'" aria-label="increase">+</button></span>'}
+function srcChips(m,max){var s=MATS[m].s.slice(0,max);if(!s.length)return '';return s.map(function(x){return '<span class="chip src">'+esc(x[0])+' ×'+x[1]+'</span>'}).join('')}
+function viewLoot(C){
+  var rows=MATNAMES.filter(function(m){return C.short[m]>0}).sort(function(a,b){return C.short[b]-C.short[a]});
+  var covered=MATNAMES.filter(function(m){return C.need[m]>0&&C.short[m]===0});
+  var h='<div class="toolbar"><label><input type="checkbox" id="expand" '+(S.expand?'checked':'')+'> Count refined parts as the raw materials they are made from</label></div>';
+  h+='<h2>Go loot these</h2><div class="list">';
+  if(!rows.length)h+='<div class="empty">Every target is covered. Raise a target on the Crafted Items tab to get a new list.</div>';
+  rows.forEach(function(m,idx){
+    var need=C.need[m],have=g(S.have,m),sh=C.short[m];
+    var pct=need?Math.min(100,Math.round(have/need*100)):0;
+    var r=MATS[m].r;
+    var users=(C.by[m]||[]).slice(0,4).map(function(n){return '<span class="chip">'+esc(n)+'</span>'}).join('');
+    h+='<div class="row hot"><div><h3>'+(idx+1)+'. '+esc(m)+' <span class="pill warn">need '+sh+' more</span></h3>'+
+      '<div class="meta">Have <span class="nums">'+have+'</span> of <span class="nums">'+need+'</span> needed'+(r?' · can be refined at '+esc(r.st)+' from '+Object.keys(r.i).map(function(k){return r.i[k]+' '+k}).join(' + '):'')+'</div>'+
+      '<div class="bar low"><i style="width:'+pct+'%"></i></div>'+(users?'<div class="chips">'+users+'</div>':'')+'</div>'+
+      '<div><div class="meta">'+(MATS[m].s.length?'Break these down:':'Where to find:')+'</div><div class="chips">'+srcChips(m,6)+'</div>'+(MATS[m].f?'<div class="meta" style="margin-top:6px">'+esc(MATS[m].f)+'</div>':'')+'</div></div>';
+  });
+  h+='</div>';
+  if(covered.length){h+='<h2>Covered</h2><div class="chips">'+covered.map(function(m){return '<span class="chip need">'+esc(m)+' '+g(S.have,m)+'/'+C.need[m]+'</span>'}).join('')+'</div>'}
+  return h;
+}
+function viewItems(C){
+  var h='<div class="toolbar">Owned is what you hold now. Target is how many you want to keep. "Crafted" spends the materials and adds to Owned.</div><div class="list">';
+  ITEMS.forEach(function(it){
+    var f=C.info[it.id],recipe=Object.keys(it.r).map(function(k){return it.r[k]+' '+k}).join(', ');
+    var miss=f.short.length&&isActive(it)&&f.n>0?'<div class="meta">Short: '+f.short.map(function(x){return x[0]+' ×'+x[1]}).join(', ')+'</div>':'';
+    h+='<div class="row irow"><div><h3>'+esc(it.name)+' <span class="pill '+f.cls+'">'+esc(f.st)+'</span></h3>'+
+      '<div class="meta">'+esc(it.st)+' · '+esc(recipe)+(it.y>1?' → '+it.y+' per craft':'')+'</div>'+miss+(it.n?'<div class="meta">'+esc(it.n)+'</div>':'')+
+      '<label class="meta"><input type="checkbox" data-bp="'+it.id+'" '+(isActive(it)?'checked':'')+'> I have the blueprint</label></div>'+
+      '<div class="ctl">Owned'+step('o:'+it.id,g(S.owned,it.id))+'</div>'+
+      '<div class="ctl">Target'+step('t:'+it.id,g(S.target,it.id))+'</div>'+
+      '<div class="acts"><button class="btn small primary" data-craft="'+it.id+'" '+((isActive(it)&&f.can>=1)?'':'disabled')+'>Crafted ×1</button></div></div>';
+  });
+  return h+'</div>';
+}
+function viewMats(C){
+  var h='<div class="toolbar">Enter what is in your stash and bags. Highlighted counts are below what your current targets need.</div><div class="grid">';
+  MATNAMES.forEach(function(m){
+    var need=C.need[m],low=C.short[m]>0;
+    h+='<div class="mcell"><div class="nm"><strong>'+esc(m)+'</strong><span class="meta">'+(need?'Needed '+need+(low?' · short '+C.short[m]:''):'Not needed now')+'</span></div>'+step('m:'+m,g(S.have,m))+'</div>';
+  });
+  return h+'</div>';
+}
+var IDX=null;
+function buildIdx(){IDX={};MATNAMES.forEach(function(m){MATS[m].s.forEach(function(x){(IDX[x[0]]=IDX[x[0]]||[]).push([m,x[1]])})})}
+var q="";
+function lookupHtml(C){
+  var term=q.trim().toLowerCase(),h='';
+  var keys=Object.keys(IDX).sort();
+  if(term)keys=keys.filter(function(k){return k.toLowerCase().indexOf(term)>-1});
+  else keys=keys.filter(function(k){return IDX[k].some(function(p){return C.short[p[0]]>0})});
+  if(!keys.length)return '<div class="empty">'+(term?'No loot item matches that name.':'Nothing to break down right now.')+'</div>';
+  h+='<div class="tablewrap"><table><thead><tr><th>Item</th><th>Breaks down into</th></tr></thead><tbody>';
+  keys.slice(0,80).forEach(function(k){
+    h+='<tr><td>'+esc(k)+'</td><td><div class="chips" style="margin:0">'+IDX[k].sort(function(a,b){return b[1]-a[1]}).map(function(p){var need=C.short[p[0]]>0;return '<span class="chip'+(need?' need':'')+'">'+p[1]+' '+esc(p[0])+(need?' · needed':'')+'</span>'}).join('')+'</div></td></tr>';
+  });
+  return h+'</tbody></table></div>';
+}
+function viewBreak(C){
+  var h='<div class="toolbar"><span>Type an item you just looted to see what it gives. Green means you still need that material.</span></div><input type="search" id="q" placeholder="Search loot items, e.g. Cooling Fan" value="'+esc(q)+'" autocomplete="off"><div id="lk" style="margin-top:12px">'+lookupHtml(C)+'</div>';
+  h+='<h2>By material</h2><div class="tablewrap"><table><thead><tr><th>Material</th><th>Best things to break down</th></tr></thead><tbody>';
+  MATNAMES.forEach(function(m){h+='<tr><td>'+esc(m)+(C.short[m]>0?' <span class="pill warn">needed</span>':'')+'</td><td><div class="chips" style="margin:0">'+srcChips(m,8)+'</div>'+(MATS[m].f?'<div class="meta" style="margin-top:4px">'+esc(MATS[m].f)+'</div>':'')+'</td></tr>'});
+  return h+'</tbody></table></div>';
+}
+var TABS=[["loot","Loot Priorities"],["items","Crafted Items"],["mats","Materials"],["break","Break It Down"]];
+function render(){
+  var C=compute();
+  var act=ITEMS.filter(isActive),ready=0,atT=0;
+  act.forEach(function(it){var f=C.info[it.id];if(f.n===0)atT++;else if(f.can>=1)ready++});
+  var openN=MATNAMES.filter(function(m){return C.short[m]>0}).length;
+  document.getElementById("stats").innerHTML=
+    '<div class="stat"><b>'+openN+'</b><span>materials short</span></div>'+
+    '<div class="stat"><b>'+ready+'</b><span>craftable now</span></div>'+
+    '<div class="stat"><b>'+atT+'/'+act.length+'</b><span>items at target</span></div>';
+  document.getElementById("tabs").innerHTML=TABS.map(function(t){return '<button role="tab" data-tab="'+t[0]+'" aria-selected="'+(S.tab===t[0])+'">'+t[1]+'</button>'}).join('');
+  var body=S.tab==="items"?viewItems(C):S.tab==="mats"?viewMats(C):S.tab==="break"?viewBreak(C):viewLoot(C);
+  if(S.example)body='<div class="banner"><p><b>These numbers are examples.</b> Replace them with your own stock, or clear everything to start from zero.</p><button class="btn primary" data-a="clear">Start from zero</button><button class="btn" data-a="dismiss">Keep examples</button></div>'+body;
+  var key=document.activeElement&&document.activeElement.dataset?(document.activeElement.id||''):'';
+  var main=document.getElementById("main");main.innerHTML=body;
+  if(key){var el=document.getElementById(key);if(el){el.focus();if(el.type==="search"){var l=el.value.length;try{el.setSelectionRange(l,l)}catch(e){}}}}
+}
+/* ---------- EVENTS ---------- */
+function setKey(k,v){
+  v=Math.max(0,Math.floor(+v||0));var p=k.split(":"),t=p[0],id=p.slice(1).join(":");
+  if(t==="o")S.owned[id]=v;else if(t==="t")S.target[id]=v;else S.have[id]=v;
+}
+function getKey(k){var p=k.split(":"),t=p[0],id=p.slice(1).join(":");return t==="o"?g(S.owned,id):t==="t"?g(S.target,id):g(S.have,id)}
+document.addEventListener("click",function(e){
+  var b=e.target.closest("button");if(!b)return;
+  if(b.dataset.tab){S.tab=b.dataset.tab;save();render();window.scrollTo(0,0);return}
+  var a=b.dataset.a;
+  if(a==="inc"||a==="dec"){S.example=S.example;setKey(b.dataset.k,getKey(b.dataset.k)+(a==="inc"?1:-1));save();render();var el=document.querySelector('button[data-a="'+a+'"][data-k="'+b.dataset.k+'"]');if(el)el.focus();return}
+  if(a==="clear"){S={have:{},owned:{},target:{hammo:30,lammo:12,herb:5,seek:4,trig:4},bp:{hull:false,wolf:false},expand:true,tab:S.tab};save();render();return}
+  if(a==="dismiss"){S.example=false;save();render();return}
+  if(b.dataset.craft){
+    var it=ITEMBYID[b.dataset.craft];
+    for(var m in it.r)S.have[m]=Math.max(0,g(S.have,m)-it.r[m]);
+    S.owned[it.id]=g(S.owned,it.id)+it.y;S.example=false;save();render();
+  }
+});
+document.addEventListener("change",function(e){
+  var t=e.target;
+  if(t.id==="expand"){S.expand=t.checked;save();render();return}
+  if(t.dataset.bp){S.bp[t.dataset.bp]=t.checked;save();render();return}
+  if(t.dataset.k&&t.type==="number"){setKey(t.dataset.k,t.value);save();render()}
+});
+document.addEventListener("input",function(e){
+  if(e.target.id==="q"){q=e.target.value;document.getElementById("lk").innerHTML=lookupHtml(compute())}
+});
+buildIdx();load();render();initCloud();
+})();
+</script>
+
+</body></html>
