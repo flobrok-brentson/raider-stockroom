@@ -484,9 +484,26 @@ function viewMats(C){
   return h;
 }
 var IDX=null;
+// Recycle results missing from the game data export. Each was confirmed on two community wiki / database pages.
+var RECYCLE_PATCH={
+ "Insulation Roll":{"Durable Cloth":2},
+ "Damaged Leaper Pulse Unit":{"ARC Alloy":3},
+ "Differential Microphone":{"Speaker Component":1,"Wires":2},
+ "Epoxy Bucket":{"Chemicals":8},
+ "Mini Pump":{"Sensors":1,"Plastic Parts":2},
+ "Skulker Targeter":{"Simple Gun Parts":1,"ARC Alloy":1},
+ "Steel Cable":{"Wires":1},
+ "Thermal Shaker":{"Electrical Components":2,"Calculator":2},
+ "Bully Fragmenter":{"Explosive Compound":1,"ARC Alloy":1}
+};
 function buildIdx(){IDX={};
   Object.keys(DB).forEach(function(id){var e=DB[id];if(e.ri){IDX[e.n]=Object.keys(e.ri).map(function(m){return [m,e.ri[m]]})}});
-  MATNAMES.forEach(function(m){MATS[m].s.forEach(function(x){var nm=x[0].replace(/ \(salvage\)$/,"");if(DBN[nm.toLowerCase()])return;(IDX[x[0]]=IDX[x[0]]||[]).push([m,x[1]])})})}
+  MATNAMES.forEach(function(m){MATS[m].s.forEach(function(x){var nm=x[0].replace(/ \(salvage\)$/,"");if(DBN[nm.toLowerCase()])return;(IDX[x[0]]=IDX[x[0]]||[]).push([m,x[1]])})});
+  Object.keys(RECYCLE_PATCH).forEach(function(item){
+    if(IDX[item])return;var o=RECYCLE_PATCH[item];
+    IDX[item]=Object.keys(o).map(function(m){return [m,o[m]]});
+    Object.keys(o).forEach(function(m){var M=MATS[m];if(!M)return;if(!M.s.some(function(x){return x[0]===item}))M.s.push([item,o[m]]);M.s.sort(function(a,b){return b[1]-a[1]})});
+  })}
 var q="";
 function lookupHtml(C){
   var term=q.trim().toLowerCase(),h='';
