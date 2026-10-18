@@ -523,6 +523,35 @@ function viewBreak(C){
   MATNAMES.forEach(function(m){h+='<tr><td>'+esc(m)+(C.short[m]>0?' <span class="pill warn">needed</span>':'')+'</td><td><div class="chips" style="margin:0">'+srcChips(m,8)+'</div>'+(MATS[m].f?'<div class="meta" style="margin-top:4px">'+esc(MATS[m].f)+'</div>':'')+'</td></tr>'});
   return h+'</tbody></table></div>';
 }
+/* ---------- LOGBOOK ---------- */
+var LOGMAX=50;
+function liveLog(){return S.log.filter(function(e){return !e.undone&&!e.noundo})}
+function pushLog(txt,ch,noundo){
+  S.log.unshift({t:Date.now(),id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch||[],noundo:!!noundo});
+  S.log=S.log.slice(0,LOGMAX);
+}
+function logTime(e){return e.t||parseInt(String(e.id).slice(0,-3),36)||0}
+function dayLabel(t){
+  var d=new Date(t),n=new Date(),y=new Date(n.getFullYear(),n.getMonth(),n.getDate()-1);
+  if(d.toDateString()===n.toDateString())return "Today";
+  if(d.toDateString()===y.toDateString())return "Yesterday";
+  return d.toLocaleDateString([], {weekday:"short",month:"short",day:"numeric"});
+}
+function viewLogbook(C){
+  var h='<div class="toolbar">Your last '+LOGMAX+' actions from the Made, Repair / Upgrade, Recycle, Sell and Lost / Gained tabs, plus Crafted ×1, challenge items and resets. Newest first. Typing a number straight into an Owned, Target or Have box is not logged. Undone entries stay here, crossed out.</div>';
+  if(D.madeMsg)h+='<div class="banner" style="border-color:var(--ok);background:var(--ok-bg)"><p>'+esc(D.madeMsg)+'</p></div>';
+  if(!S.log.length)return h+'<div class="empty">Nothing logged yet. Anything you record on the action tabs shows up here.</div>';
+  var last="",open=false;
+  S.log.forEach(function(e){
+    var t=logTime(e),dl=t?dayLabel(t):"Earlier";
+    if(dl!==last){if(open)h+='</div>';h+='<h2>'+esc(dl)+'</h2><div class="list">';last=dl;open=true}
+    var tm=t?new Date(t).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"";
+    h+='<div class="row"><div><div class="meta" style="margin:0'+(e.undone?';text-decoration:line-through':'')+'"><span class="nums">'+esc(tm)+'</span> · '+esc(e.txt)+'</div>'+(e.undone?'<div class="meta">Undone'+(e.undoneAt?' at '+esc(new Date(e.undoneAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})):'')+'</div>':'')+'</div>'+
+      '<div>'+(e.undone||e.noundo?'':'<button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button>')+'</div></div>';
+  });
+  if(open)h+='</div>';
+  return h;
+}
 /* ---------- MADE TAB ---------- */
 // Log what you made. Crafted items: Owned goes up and the ingredients come out of Materials. Refined materials: the parts they are refined from come out. Other materials: simply added.
 function applyMade(kind,id,n){
@@ -541,16 +570,16 @@ function applyMade(kind,id,n){
     parts.push(nm+" "+(c[2]>0?"+":"−")+Math.abs(c[2])+(c[0]==="o"?" owned":""));
   });
   var txt="Made "+n+" × "+label+(crafts>1&&rec?" ("+crafts+" crafts)":"")+": "+parts.join(" · ");
-  S.log.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:kept});
-  S.log=S.log.slice(0,30);S.example=false;
+  S.log.unshift({t:Date.now(),id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:kept});
+  S.log=S.log.slice(0,LOGMAX);S.example=false;
   D.madeMsg=txt+(warn.length?". You had fewer "+warn.join(", ")+" than that used, so "+(warn.length>1?"they were":"it was")+" set to 0.":"");
   save();
   return D.madeMsg;
 }
 function undoMade(id){
-  var e=S.log.filter(function(x){return x.id===id})[0];if(!e)return;
+  var e=S.log.filter(function(x){return x.id===id})[0];if(!e||e.undone||e.noundo)return;
   e.ch.forEach(function(c){var map=c[0]==="o"?S.owned:S.have;map[c[1]]=Math.max(0,g(map,c[1])-c[2])});
-  S.log=S.log.filter(function(x){return x.id!==id});
+  e.undone=true;e.undoneAt=Date.now();
   D.madeMsg="Undid: "+e.txt;save();
 }
 function madeRow(key,name,meta,pill){
@@ -581,8 +610,8 @@ function viewMade(C){
   if(plain.length){any=true;h+='<h2>Other materials (added to your stock)</h2><div class="list">'+plain.map(function(m){return madeRow("m:"+m,m,'Have <span class="nums">'+g(S.have,m)+'</span>')}).join('')+'</div>'}
   if(!any)h+='<div class="empty">Nothing matches.</div>';
   h+='<h2>Recent entries</h2>';
-  if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
-  else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
+  if(!liveLog().length)h+='<div class="empty">Nothing logged yet.</div>';
+  else h+='<div class="list">'+liveLog().slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
   return h;
 }
 /* ---------- REPAIR / UPGRADE TAB ---------- */
@@ -594,8 +623,8 @@ function applySlot(id,n){
   var ch=[],warn=[],parts=[];
   for(var m in sl.r){var old=g(S.have,m),nv=Math.max(0,old-sl.r[m]*n);if(old-sl.r[m]*n<0)warn.push(m);if(nv!==old){ch.push(["h",m,nv-old]);S.have[m]=nv;parts.push(m+" −"+(old-nv))}}
   var txt=FIXKIND[sl.kind].done+" "+sl.name+(n>1?" × "+n:"")+": "+(parts.join(" · ")||"nothing used");
-  S.log.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
-  S.log=S.log.slice(0,30);S.example=false;
+  S.log.unshift({t:Date.now(),id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
+  S.log=S.log.slice(0,LOGMAX);S.example=false;
   D.madeMsg=txt+(warn.length?". You had fewer "+warn.join(", ")+" than that used, so "+(warn.length>1?"they were":"it was")+" set to 0.":"");
   save();
 }
@@ -631,8 +660,8 @@ function viewFix(C){
     }).join('')+'</div>';
   });
   h+='<h2>Recent entries</h2>';
-  if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
-  else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
+  if(!liveLog().length)h+='<div class="empty">Nothing logged yet.</div>';
+  else h+='<div class="list">'+liveLog().slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
   return h;
 }
 /* ---------- RECYCLE TAB ---------- */
@@ -653,8 +682,8 @@ function applyRecycle(kind,key,n){
     S.have[m]=g(S.have,m)+add;ch.push(["h",m,add]);parts.push(m+" +"+add);
   });
   var txt="Recycled "+n+" × "+name+": "+parts.join(" · ");
-  S.log.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
-  S.log=S.log.slice(0,30);S.example=false;
+  S.log.unshift({t:Date.now(),id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
+  S.log=S.log.slice(0,LOGMAX);S.example=false;
   D.madeMsg=txt+(warn.length?". You only had "+(kind==="i"?g(S.owned,key):g(S.have,key))+" tracked, so it was set to 0.":"");
   save();
 }
@@ -681,8 +710,8 @@ function viewRecycle(C){
   }else h+='<div class="meta" style="margin-top:12px">Type a name above to find other loot you can recycle, like Cooling Fan.</div>';
   if(!any&&term)h+='<div class="empty">Nothing matches.</div>';
   h+='<h2>Recent entries</h2>';
-  if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
-  else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
+  if(!liveLog().length)h+='<div class="empty">Nothing logged yet.</div>';
+  else h+='<div class="list">'+liveLog().slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
   return h;
 }
 /* ---------- SELL TAB ---------- */
@@ -695,8 +724,8 @@ function applySell(kind,key,n){
   if(nv!==old){ch.push([kind==="i"?"o":"h",key,nv-old]);map[key]=nv}
   var val=sellValue(name)*n;
   var txt="Sold "+n+" × "+name+": "+name+" −"+(old-nv)+(val?" · about "+val.toLocaleString()+" coins":"");
-  S.log.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
-  S.log=S.log.slice(0,30);S.example=false;
+  S.log.unshift({t:Date.now(),id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
+  S.log=S.log.slice(0,LOGMAX);S.example=false;
   D.madeMsg=txt+(old<n?". You only had "+old+" tracked, so it was set to 0.":"");
   save();
 }
@@ -717,8 +746,8 @@ function viewSell(C){
   if(!items.length&&!mats.length)h+='<div class="empty">Nothing matches.</div>';
   if(!term)h+='<div class="meta" style="margin-top:12px">Materials you hold none of are hidden. Search for a name to find them.</div>';
   h+='<h2>Recent entries</h2>';
-  if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
-  else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
+  if(!liveLog().length)h+='<div class="empty">Nothing logged yet.</div>';
+  else h+='<div class="list">'+liveLog().slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
   return h;
 }
 /* ---------- LOST / GAINED TAB ---------- */
@@ -737,8 +766,8 @@ function lgApply(keys){
   });
   if(!ch.length)return false;
   var txt=(ch.length>1?"Round update: ":"Updated: ")+parts.join(" · ");
-  S.log.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
-  S.log=S.log.slice(0,30);S.example=false;
+  S.log.unshift({t:Date.now(),id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),txt:txt,ch:ch});
+  S.log=S.log.slice(0,LOGMAX);S.example=false;
   D.madeMsg=txt+(warn.length?". You had fewer "+warn.join(", ")+" than that, so "+(warn.length>1?"they were":"it was")+" set to 0.":"");
   save();return true;
 }
@@ -763,11 +792,11 @@ function viewLG(C){
   if(!items.length&&!mats.length&&!staples.length)h+='<div class="empty">Nothing matches.</div>';
   if(!term)h+='<div class="meta" style="margin-top:12px">Like the Materials tab, this shows only materials used by your crafted items and challenge items. Search for a name to find any other material.</div>';
   h+='<h2>Recent entries</h2>';
-  if(!S.log.length)h+='<div class="empty">Nothing logged yet.</div>';
-  else h+='<div class="list">'+S.log.slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
+  if(!liveLog().length)h+='<div class="empty">Nothing logged yet.</div>';
+  else h+='<div class="list">'+liveLog().slice(0,10).map(function(e){return '<div class="row"><div class="meta" style="margin:0">'+esc(e.txt)+'</div><div><button class="btn small" data-a="mkundo" data-id="'+esc(e.id)+'">Undo</button></div></div>'}).join('')+'</div>';
   return h;
 }
-var TABS=[["loot","Loot Priorities"],["items","Crafted Items"],["mats","Materials"],["made","Made"],["fix","Repair / Upgrade"],["recycle","Recycle"],["sell","Sell"],["lg","Lost / Gained"],["break","Break It Down"]];
+var TABS=[["loot","Loot Priorities"],["items","Crafted Items"],["mats","Materials"],["made","Made"],["fix","Repair / Upgrade"],["recycle","Recycle"],["sell","Sell"],["lg","Lost / Gained"],["log","Logbook"],["break","Break It Down"]];
 function render(){
   var C=compute();
   var act=allItems().filter(isActive),ready=0,atT=0;
@@ -780,7 +809,7 @@ function render(){
     '<div class="stat"><b>'+atT+'/'+act.length+'</b><span>items at target</span></div>'+
     (S.watch.length?'<div class="stat"><b>'+openW+'</b><span>challenge items left</span></div>':'');
   document.getElementById("tabs").innerHTML=TABS.map(function(t){return '<button role="tab" data-tab="'+t[0]+'" aria-selected="'+(S.tab===t[0])+'">'+t[1]+'</button>'}).join('');
-  var body=S.tab==="items"?viewItems(C):S.tab==="mats"?viewMats(C):S.tab==="made"?viewMade(C):S.tab==="fix"?viewFix(C):S.tab==="recycle"?viewRecycle(C):S.tab==="sell"?viewSell(C):S.tab==="lg"?viewLG(C):S.tab==="break"?viewBreak(C):viewLoot(C);
+  var body=S.tab==="items"?viewItems(C):S.tab==="mats"?viewMats(C):S.tab==="made"?viewMade(C):S.tab==="fix"?viewFix(C):S.tab==="recycle"?viewRecycle(C):S.tab==="sell"?viewSell(C):S.tab==="lg"?viewLG(C):S.tab==="log"?viewLogbook(C):S.tab==="break"?viewBreak(C):viewLoot(C);
   if(S.example)body='<div class="banner"><p><b>These numbers are examples.</b> Replace them with your own stock, or clear everything to start from zero.</p><button class="btn primary" data-a="clear">Start from zero</button><button class="btn" data-a="dismiss">Keep examples</button></div>'+body;
   var key=document.activeElement&&document.activeElement.dataset?(document.activeElement.id||''):'';
   var main=document.getElementById("main");main.innerHTML=body;
@@ -819,18 +848,18 @@ document.addEventListener("click",function(e){
   if(a==="lgall"){D.lg=D.lg||{};lgApply(Object.keys(D.lg));render();return}
   if(a==="lgclear"){D.lg={};render();return}
   if(a==="mkundo"){undoMade(b.dataset.id);render();return}
-  if(a==="clear"){S={have:{},owned:{},target:{hammo:30,lammo:12,herb:5,seek:4,trig:4},bp:{hull:false,wolf:false},pin:{},ign:{},watch:[],hideMat:{},custom:S.custom||[],removed:S.removed||{},expand:true,tab:S.tab,log:[],slots:S.slots||[]};save();render();return}
+  if(a==="clear"){S={have:{},owned:{},target:{hammo:30,lammo:12,herb:5,seek:4,trig:4},bp:{hull:false,wolf:false},pin:{},ign:{},watch:[],hideMat:{},custom:S.custom||[],removed:S.removed||{},expand:true,tab:S.tab,log:S.log||[],slots:S.slots||[]};pushLog("Reset all numbers to zero",[],true);save();render();return}
   if(a==="dismiss"){S.example=false;save();render();return}
   if(a==="hidemat"){S.hideMat[b.dataset.m]=true;save();render();return}
   if(a==="showmat"){delete S.hideMat[b.dataset.m];save();render();return}
-  if(a==="rmwatch"){S.watch=S.watch.filter(function(w){return w.id!==b.dataset.id});save();render();return}
-  if(a==="turnin"){var tw=S.watch.filter(function(w){return w.id===b.dataset.id})[0];if(tw){S.have[tw.name]=Math.max(0,g(S.have,tw.name)-tw.need);S.watch=S.watch.filter(function(w){return w.id!==tw.id});save();render()}return}
+  if(a==="rmwatch"){var rw=S.watch.filter(function(w){return w.id===b.dataset.id})[0];if(rw)pushLog("Removed challenge item "+rw.name+" (kept your count)",[],true);S.watch=S.watch.filter(function(w){return w.id!==b.dataset.id});save();render();return}
+  if(a==="turnin"){var tw=S.watch.filter(function(w){return w.id===b.dataset.id})[0];if(tw){pushLog("Turned in "+tw.need+" × "+tw.name+" for a challenge",[],true);S.have[tw.name]=Math.max(0,g(S.have,tw.name)-tw.need);S.watch=S.watch.filter(function(w){return w.id!==tw.id});save();render()}return}
   if(a==="addwatch"){
     var raw=(D.wname||"").trim();if(!raw)return;
     var nm=canon(raw),qty=Math.max(1,Math.floor(+D.wqty||1));
     var ex=S.watch.filter(function(w){return w.name.toLowerCase()===nm.toLowerCase()})[0];
     if(ex)ex.need+=qty;else S.watch.push({id:"w"+Date.now().toString(36),name:nm,need:qty});
-    ensureMats();
+    ensureMats();pushLog("Added challenge item: "+qty+" × "+nm,[],true);
     D.wname="";D.wqty=1;save();render();return}
   if(a==="toggleform"){D.showForm=!D.showForm;D.err="";render();return}
   if(a==="rmitem"){
@@ -855,8 +884,10 @@ document.addEventListener("click",function(e){
     S.target[nid]=1;ensureMats();D.cn="";D.cs="";D.cy=1;D.ing=[{n:"",q:1}];D.err="";D.showForm=false;save();render();return}
   if(b.dataset.craft){
     var it=itemById(b.dataset.craft);if(!it)return;
-    for(var m in it.r)S.have[m]=Math.max(0,g(S.have,m)-it.r[m]);
-    S.owned[it.id]=g(S.owned,it.id)+it.y;S.example=false;save();render();
+    var cch=[["o",it.id,it.y]],cparts=[it.name+" +"+it.y+" owned"];
+    for(var m in it.r){var oh=g(S.have,m),nh=Math.max(0,oh-it.r[m]);S.have[m]=nh;if(nh!==oh){cch.push(["h",m,nh-oh]);cparts.push(m+" −"+(oh-nh))}}
+    S.owned[it.id]=g(S.owned,it.id)+it.y;S.example=false;
+    pushLog("Crafted 1 × "+it.name+": "+cparts.join(" · "),cch);save();render();
   }
 });
 document.addEventListener("change",function(e){
