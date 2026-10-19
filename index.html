@@ -186,7 +186,10 @@ function makeMat(m){
   else M.f="Custom item you added.";
   return M;
 }
+// Recipes corrected from what you saw in game. They replace the game-data recipe, including on items already added to your list.
+var RECIPE_FIX={snap_hook:{"Power Rod":2,"Steel Cable":2,"Exodus Modules":1}};
 function mergeData(){
+  Object.keys(RECIPE_FIX).forEach(function(id){if(DB[id])DB[id].rc=JSON.parse(JSON.stringify(RECIPE_FIX[id]))});
   Object.keys(DB).forEach(function(id){DBN[DB[id].n.toLowerCase()]=id});
   var src=SRC,ing={};
   Object.keys(DB).forEach(function(id){var e=DB[id],ri=e.ri||{},sv=e.sv||{};
@@ -267,7 +270,7 @@ function load(){
   if(!S)S=example();
   norm();
 }
-function norm(){S.have=S.have||{};S.owned=S.owned||{};S.target=S.target||{};S.bp=S.bp||{};S.pin=S.pin||{};S.ign=S.ign||{};S.watch=S.watch||[];S.hideMat=S.hideMat||{};S.custom=S.custom||[];S.removed=S.removed||{};S.log=S.log||[];S.slots=S.slots||[];if(!S.tab)S.tab="loot";S.watch.forEach(function(w){if(w.have!==undefined){if(w.have>0)S.have[w.name]=(+S.have[w.name]||0)+w.have;delete w.have}});ensureMats()}
+function norm(){S.have=S.have||{};S.owned=S.owned||{};S.target=S.target||{};S.bp=S.bp||{};S.pin=S.pin||{};S.ign=S.ign||{};S.watch=S.watch||[];S.hideMat=S.hideMat||{};S.custom=S.custom||[];S.removed=S.removed||{};S.custom.forEach(function(c){if(c.game&&String(c.id).indexOf("g_")===0&&RECIPE_FIX[c.id.slice(2)])c.r=JSON.parse(JSON.stringify(RECIPE_FIX[c.id.slice(2)]))});S.log=S.log||[];S.slots=S.slots||[];if(!S.tab)S.tab="loot";S.watch.forEach(function(w){if(w.have!==undefined){if(w.have>0)S.have[w.name]=(+S.have[w.name]||0)+w.have;delete w.have}});ensureMats()}
 function save(){
   clearTimeout(saveT);
   saveT=setTimeout(function(){
